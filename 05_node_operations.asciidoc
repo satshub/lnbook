@@ -1,166 +1,155 @@
 [[operating_ln_node]]
 [[node_operations]]
-== Operating a Lightning Network Node
+== 操作闪电节点
 
-((("Lightning node operation", id="ix_05_node_operations-asciidoc0", range="startofrange")))After having read this far, you have probably set up a Lightning wallet. In this chapter, we will take things one step further and set up a full Lightning node. In addition to setting one up, we will learn how to operate it and maintain it over time.
 
-There are many reasons why you might want to set up your own Lightning node. They include:
+((("Lightning node operation", id="ix_05_node_operations-asciidoc0", range="startofrange")))读到这里之后，你可能已经建立了一个闪电钱包。 在本章中，我们将更进一步，建立一个完整的闪电节点。 除了设置该节点，我们将学习如何操作它并随着时间的推移对其进行维护。
 
-* To be a full, active participant in the Lightning Network, not just an end user
-* To run an ecommerce store or receive income via Lightning payments
-* To earn income from Lightning routing fees or by renting channel liquidity
-* To develop new services, applications, or plug-ins for the Lightning Network
-* To increase your financial privacy while using Lightning
-* To use some apps built on top of Lightning, like Lightning-powered instant messaging apps
-* For financial freedom, independence, and sovereignty
 
-There are costs associated with running an LN node. You need a computer, a permanent internet connection, lots of disk space, and lots of time!
-Operational costs will include electricity expenses.
+您需要设置自己的闪电节点的原因可能有很多。他们包括：
 
-But the skills you will learn from this experience are valuable and can be applied to a variety of other tasks too.
+* 成为闪电网络的完整、积极参与者，而不仅仅是最终用户
+* 经营电子商务商店或通过闪电支付获得收入
+* 通过闪电路由费用或通过租用通道流动性来赚取收入
+* 为闪电网络开发新的服务、应用程序或插件
+* 在使用 Lightning 时增加您的财务隐私
+* 使用基于 Lightning 的一些应用程序，例如由 Lightning 驱动的即时消息应用程序
+* 为了财务自由、独立和主权
 
-Let's get started!
+
+运行 LN 节点会产生相关成本。你需要一台电脑、一个永久的互联网连接、大量的磁盘空间和大量的时间！运营成本将包括电费。
+
+但是您将从这次经历中学到的技能很有价值，并将他们应用于其他各种方面。
+
+让我们开始吧！
+
 
 [NOTE]
 ====
-It is important that you set your own expectations correctly on accurate facts.
-If you plan to operate a Lightning node _solely_ to gain income by earning routing fees,
-please do your homework diligently first. Running a profitable business by operating a Lightning node is
-definitely _not_ easy. Calculate all your initial and ongoing costs in a spreadsheet. Study LN statistics carefully.
-What is the current payment volume? What is the volume per node? What are the current average routing fees? Consult forums and ask
-for advice or feedback from other community members who have already gained real-world experience. Form your own educated opinion only
-_after_ you have done this due diligence exercise. Most people will find their motivation for running a node not in financial gain,
-but somewhere else.
+根据准确的事实正确设定自己的期望非常重要。
+如果你打算运营一个闪电节点,并通过赚取路由费来获得收入，
+请先认真做好功课。通过运营闪电节点来经营盈利业务不是一件轻松容易的事
+。 您需要在电子表格中计算所有初始和持续成本。仔细研究 LN 统计数据。
+目前的支付量是多少？ 每个节点的体积是多少？目前的平均路由费用是多少？ 可以去论坛问问，或者从其他已经获得实际经验的社区成员那里获得建议或反馈。在你完成了这些尽职调查后，你会形成自己的认知。大多数人会发现他们运行节点的动机不是为了经济利益，而是一些其他的原因。
 ====
 
-=== Choosing Your Platform
+=== 选择一个平台
 
-((("Lightning node operation","choosing a platform", id="ix_05_node_operations-asciidoc1", range="startofrange")))There are many ways you can run a Lightning node, ranging from a small mini PC hosted in your home or a dedicated server, to a hosted server in the cloud. The method you choose will depend on the resources you have and how much money you want to spend.
+((("Lightning node operation","choosing a platform", id="ix_05_node_operations-asciidoc1", range="startofrange")))您可以通过多种方式运行 Lightning 节点，例如: 托管在您家中的小型迷你 PC 或专用服务器到云中的托管服务器。 您选择的方法将取决于您拥有的资源以及您想花多少钱。
 
 [[continuous_operation]]
-==== Why Is Reliability Important for Running a Lightning Node?
+==== 为什么可靠性对于运行闪电节点很重要？
 
-((("Lightning node operation","reliability issues")))((("reliability, Lightning node and")))In Bitcoin, hardware is not particularly important unless one is specifically running a mining node.
-The Bitcoin Core node software can be run on any machine that meets its minimum requirements and does not need to be online to receive payments—only to send them.
-If a Bitcoin node goes down for an extended period of time, the user can simply reboot the node, and once it connects to the rest of the network, it will resync the blockchain.
+((("Lightning node operation","reliability issues")))((("reliability, Lightning node and")))在比特币中，硬件并不是特别重要，除非用户需要专门运行一个挖矿节点。
+比特币核心节点软件可以在任何满足其最低要求的机器上运行，并且不需要在线接收付款——只需发送它们。
+如果一个比特币节点长时间宕机，用户可以简单地重启节点，一旦它连接到网络的其余部分，它将重新同步区块链。
 
-In Lightning, however, the user needs to be online both to send _and_ to receive payments. If the Lightning node is offline, it cannot receive any payments from anyone, and thus its open invoices cannot be fulfilled.
-Furthermore, the open channels of an offline node cannot be used to route payments. Your channel partners will notice that you are offline and cannot contact you to route a payment. If you are offline too often, they may consider the bitcoin locked up in their channels with you to be underutilized capacity, and may close those channels. We already discussed the case of a protocol attack in which your channel partner tries to cheat you by submitting an earlier commitment transaction. If you are offline and your channels aren't being monitored, then the attempted theft could succeed, and you will have no recourse once the timelock expires.
-Hence, node reliability is extremely important for a Lightning node.
+然而，在闪电网络中，用户需要在线发送和接收付款。 如果闪电节点处于离线状态，它无法接收任何人的任何付款，因此其未结发票无法履行。
+此外，离线节点的开放通道不能用于路由支付。您的通道合作伙伴会注意到您处于离线状态，无法联系您进行付款。 如果您经常离线，他们可能会认为与您一起锁定在他们的通道中的比特币未被充分利用，并可能关闭这些通道。 我们已经讨论过协议攻击的案例，您的通道合作伙伴试图通过提交较早的承诺交易来欺骗您。 如果您处于离线状态且您的通道未被监控，则您的合作伙伴的盗窃行为可能会成功，并且一旦时间锁到期，您将无权追索。因此，节点可靠性对于 Lightning 节点极为重要。
 
-((("hardware failure")))There are also the issues of hardware failure and loss of data. In Bitcoin, a hardware failure can be a trivial problem if the user has a backup of their mnemonic phrase or private keys. The Bitcoin wallet and the bitcoin inside the wallet can be easily restored from the private keys on a new computer. Most information can be redownloaded from the blockchain.
+((("hardware failure")))还有硬件故障和数据丢失的问题。在比特币中，如果用户有助记词或私钥的备份，硬件故障可能是一个小问题。 比特币钱包和钱包内的比特币可以很容易地从新电脑上的私钥恢复。大多数信息可以从区块链重新下载。
 
-In contrast, in Lightning the information about the user's channels, including the commitment transactions and revocation secrets, are not publicly known and are only stored on the individual user's hardware.
-Thus, software and hardware failures in the Lightning Network can easily result in loss of funds.
+相比之下，在闪电网络中，关于用户通道的信息，包括承诺交易和撤销秘密，是不公开的，只存储在个人用户的硬件上。
+因此，闪电网络中的软件和硬件故障很容易导致资金损失。
 
-==== Types of Hardware Lightning Nodes
+==== 硬件闪电节点的类型
 
-((("Lightning node operation","types of hardware Lightning nodes")))There are three main types of hardware Lightning nodes:
+((("Lightning node operation","types of hardware Lightning nodes")))硬件闪电节点主要分为三种类型：
 
-General-purpose computers:: An LN node can be run on a home computer or laptop running Windows, macOS, or Linux. Typically this is run alongside a Bitcoin node.
-Dedicated hardware:: A Lightning node can also be run on dedicated hardware like a Raspberry Pi, Rock64, or mini PC. This setup would usually run a software stack, including a Bitcoin node and other applications. This setup is popular because the hardware is dedicated to running and maintaining the Lightning node only and is usually set up with an installation "helper."
-Preconfigured hardware:: An LN node can also be run on purpose-built hardware specifically selected and configured for it. This would include "out-of-the-box" Lightning node solutions that can be purchased as a kit or a turnkey system.
+通用计算机:: LN 节点可以在运行Windows、macOS或Linux的家用计算机或笔记本电脑上运行。通常，这与比特币节点一起运行。
 
-==== Running in the "Cloud"
+专用硬件:: 闪电节点也可以在专用硬件上运行，如 Raspberry Pi、Rock64或迷你PC。这种设置通常会运行一个软件堆栈，包括一个比特币节点和其他应用程序。这种设置很受欢迎，因为硬件专门用于运行和维护闪电节点，并且通常设置有安装“助手”。
 
-((("cloud, Lightning node operation in")))((("Lightning node operation","running in the cloud")))((("virtual private server (VPS)")))_Virtual private server_ (VPS) and cloud computing services such as Microsoft Azure, Google Cloud, Amazon Web Services (AWS), or DigitalOcean are quite affordable and can be set up very quickly. A Lightning node can be hosted for between $20 and $40 per month on such a service.
+预配置硬件:: LN 节点也可以在专门为其选择和配置的专用硬件上运行。这将包括“开箱即用”的闪电节点解决方案，可以以服务套件或统一交付模式购买。
 
-However, as the saying goes, "&lsquo;Cloud&rsquo; is just other people's computers." Using these services means running your node on other people's computers. This brings along the corresponding advantages and disadvantages. The key advantages are convenience, efficiency, uptime, and possibly even cost. The cloud operator manages and runs the node to a high degree, automatically providing you with convenience and efficiency. They provide excellent uptime and availability, often much better than what an individual can achieve at home. If you consider that just the electricity cost of running a server in many Western countries is around $10 per month, then add to that the cost of network bandwidth and the hardware itself, the VPS offering becomes financially competitive. Lastly, with a VPS you need no space for a PC at home and don't have any issues with PC noise or heat.
-On the other hand, there are several notable disadvantages. A Lightning node running in the "cloud" will always be less secure and less private than one running on your own computer. Additionally, these cloud computing services are very centralized. The vast majority of Bitcoin and Lightning nodes running on such services are located in a handful of data centers in Virginia, Sunnyvale, Seattle, London, and Frankfurt. When the networks or data centers of these providers have service problems, it affects thousands of nodes on so-called "decentralized" networks.
+==== 云端运行
 
-If you have the possibility and capacity of running a node on your own computer at home or in your office, then this might be preferable to running it
-in the cloud. Nonetheless, if running your own server is not an option, by all means consider running one on a VPS.
+((("cloud, Lightning node operation in")))((("Lightning node operation","running in the cloud")))((("virtual private server (VPS)"))) _Virtual private server_ (VPS) 微软 Azure、谷歌云、亚马逊网络服务 (AWS) 或 DigitalOcean 等云计算服务非常实惠，而且可以非常快速地配置。 一个闪电节点可以在这样的服务上以每月 20 到 40 美元的价格托管。
 
-==== Running a Node at Home
+然而，俗话说“云不过是别人的电脑”。使用这些服务意味着在其他人的计算机上运行您的节点。这带来了相应的优点和缺点。主要优势是便利性、效率、正常运行时间，甚至可能是成本。云运营商高度管理和运行节点，自动为您提供方便和高效的服务。它们提供出色的正常运行时间和可用性，通常比个人在家运行一个节点要好得多。如果您认为在许多西方国家运行服务器的电费仅为每月 10 美元左右，再加上网络带宽和硬件本身的成本，VPS 产品在成本上就很有优势。最后，使用 VPS，您无需在家中放置 PC 空间，也不会遇到 PC 噪音或发热问题。
+另一方面，有几个显着的缺点。在“云”中运行的闪电节点总是比在您自己的计算机上运行的节点更不安全，也更不私密。此外，这些云计算服务非常集中。在此类服务上运行的绝大多数比特币和闪电节点位于弗吉尼亚、桑尼维尔、西雅图、伦敦和法兰克福的少数数据中心。当这些提供商的网络或数据中心出现服务问题时，会影响到所谓的“去中心化”网络上的数千个节点。
 
-((("Lightning node operation","running a node at home")))If you have a reasonable-capacity internet connection at home or in your office, you can certainly run a Lightning node there. Any "broadband" connection is sufficient for the purpose of running a lightweight node, and a fast connection will allow you to run a Bitcoin full node too.
+相比于在云端运行一个节点，在您家中或办公室的计算机上运行一个节点，是一种高更可取的策略。 然而，如果没法运行一个独立的闪电节点服务器，请务必考虑在 VPS 上运行一个。
 
-While you can run a Lightning node (and even a Bitcoin node) on your laptop, it will become annoying quite fast. These programs consume your computer's resources and need to run 24/7. Your user applications like your browser or your spreadsheet will be competing against the Lightning background services for your computer's resources. In other words, your browser and other desktop workloads will be slowed down.
-And when your word-processing app freezes up your laptop, your Lightning node will go down as well, leaving you unable to receive transactions and potentially vulnerable to attacks. Furthermore, you should never turn off your laptop.
-All this combined together results in a setup that is not ideal. The same will apply to your daily-use personal desktop PC.
+==== 在家运行一个节点
 
-Instead, most users will choose to run a node on a dedicated computer.
-Fortunately, you don't need a "server" class computer to do this.
-You can run a Lightning node on a single-board computer, such as a Raspberry Pi or on a mini PC (usually marketed as home theater PCs).
-These are simple computers which are commonly used as a home automation hub or a media server.
-They are relatively inexpensive when compared to a PC or a laptop.
-The advantage of a dedicated device as a platform for Lightning and Bitcoin nodes is that it can run continuously, silently, and unobtrusively on your home network, tucked behind your router or TV.
-No one will even know that this little box is actually part of a global banking system!
+((("Lightning node operation","running a node at home")))如果你在家或办公室有一个连接良好的的互联网环境，你当然可以在那里运行一个闪电节点。 任何“宽带”连接都足以运行轻量级节点，而快速连接也可以让你运行比特币全节点。
+
+虽然您可以在笔记本电脑上运行闪电节点（甚至是比特币节点），但它会很快变得烦人。 这些程序会消耗您计算机的资源，并且需要 24/7 全天候运行。 您的浏览器或电子表格等用户应用程序将与 Lightning 后台服务竞争您的计算机资源。 换句话说，您的浏览器和其他桌面程序将变慢。
+当你的Word程序导致你的笔记本电脑死机时，你的闪电节点也会随着关闭，这会让你无法接收交易并可能容易受到攻击。此外，您永远不应该关闭您的笔记本电脑。所有这些结合在一起，导致了一个不理想的节点运行环境。
+
+相反，大多数用户会选择在专用计算机上运行节点。幸运的是，您不需要“服务器”类计算机来执行此操作。您可以在单板计算机（例如 Raspberry Pi）或迷你PC（通常作为家庭影院PC销售）上运行Lightning节点。这些是简单的计算机，通常用作家庭自动化集线器或媒体服务器。与PC或笔记本电脑相比，它们相对便宜。专用设备作为闪电网络和比特币节点平台的优势在于，它可以在您的家庭网络上连续且悄无声息地运行，隐藏在路由器或电视后面。甚至没有人知道这个小盒子实际上是全球银行系统的一部分！
 
 [WARNING]
 ====
-Operating a node on a 32-bit operating system and/or 32-bit CPU is not recommended, because the node software may run into resource issues, causing a crash and possibly a loss of funds.
+不建议在 32 位操作系统和/或 32 位 CPU 上运行节点，因为节点软件可能会遇到资源问题，导致崩溃并可能损失资金。
 ====
 
-==== What Hardware Is Required to Run a Lightning Node?
+==== 运行闪电节点需要什么硬件？
 
-((("hardware, Lightning node")))((("Lightning node operation","hardware requirements")))At a minimum, the following are required to run a Lightning node:
+((("hardware, Lightning node")))((("Lightning node operation","hardware requirements")))运行闪电节点至少需要以下条件：
 
-CPU:: Sufficient processing power is required to run a Bitcoin node, which will continuously download and validate new blocks. The user also needs to consider the initial block download (IBD) when setting up a new Bitcoin node, which can take anywhere from several hours to several days. A 2-core or 4-core CPU is recommended.
+CPU:: 运行比特币节点需要足够的处理能力，该节点将不断下载和验证新区块。 用户在设置新的比特币节点时还需要考虑初始块下载（IBD），这可能需要几个小时到几天的时间。 建议使用 2 核或 4 核 CPU。
 
-RAM:: A system with 2 GB of RAM will _barely_ run both Bitcoin and Lightning nodes. It will perform much better with at least 4 GB of RAM. The IBD will be especially challenging with less than 4 GB of RAM. More than 8 GB of RAM is unnecessary because the CPU is the greater bottleneck for these types of services, due to cryptographic operations such as signature validation.
+内存:: 具有 2 GB RAM 的系统, 可以勉强运行比特币和闪电节点。 如果使用 4 GB 的 RAM，它的性能会好得多。 如果内存不足 4 GB，IBD 将尤其具有挑战性。 超过 8 GB 的RAM是不必要的，因为由于签名验证等加密操作，CPU 是这些类型服务的更大瓶颈。
 
-Storage drive:: This can be a hard disk drive (HDD) or a solid state drive (SSD).
-An SSD will be significantly quicker (but more expensive) for running a node.
-Most of the storage is used for the Bitcoin blockchain, which is hundreds of gigabytes in size.
-A fair trade-off (cost for complexity) is to buy a small SSD to boot the OS from, and a larger HDD to store large data objects (mostly databases).
+硬盘:: 这分为硬盘驱动器 (HDD)或固态驱动器(SSD)。运行节点的SSD将明显更快（但更昂贵）。大部分存储空间，将用于比特币区块的存储，其大小为数百GB。一个公平的权衡（复杂性成本）是购买一个小型SSD来启动操作系统，并购买一个更大的 HDD 来存储大型数据对象（主要是数据库）。
+
 
 [NOTE]
 ====
-Raspberry Pis are a common choice for running node software, due to the cost and parts availability.
-The OS that runs on the device usually boots from a secure digital (SD) card.
-For most use cases, this is a nonissue, but Bitcoin Core is notorious for being I/O heavy.
-You should make sure to place the Bitcoin blockchain and Lightning data directory on a different drive because long-term intensive I/O can cause an SD card to fail.
+从成本和部件可用性考虑，Raspberry Pis 是运行节点软件的常见选择。在该设备上运行的操作系统通常从SD卡启动。对于大多数用例来说，这不是问题，但比特币核心因 I/O 繁重而臭名昭著。
+你应该确保将比特币区块链和闪电数据目录放在不同的存储驱动器上，因为长期密集的 I/O 可能会导致 SD 卡出现故障。
 ====
 
-Internet connection:: A reliable internet connection is required to download new Bitcoin blocks, as well as to communicate with other Lightning peers. During operation the estimated data use ranges from 10 to 100 GB per month, depending on configuration. At startup, a Bitcoin full node downloads the full blockchain.
 
-Power supply:: A reliable power supply is required because Lightning nodes need to be online at all times. A power failure will cause in-progress payments to fail. For heavy duty routing nodes, a backup or uninterruptible power supply (UPS) is useful in the event of power outages.
-Ideally, you should connect your internet router to this UPS as well.
+网络连通:: 一个稳定的互联网连接，对于下载比特币区块、与其他闪电节点通信都是非常有必要的。在操作期间，估计的数据使用范围为每月 10 到 100 GB，具体取决于设置。 启动时，比特币全节点将下载完整的比特币区块。
 
-Backup:: Backup is crucial because a failure can result in loss of data and hence in loss of funds.
-You will want to consider some kind of data backup solution. This could be a cloud-based automated backup to a server or web service you control. Alternatively, it could be an automated local hardware backup, such as a second hard drive. For best results, both local and remote backup can be combined.
+持续供电:: 可靠的电源是非常有必要的，因为闪电节点需要始终在线。电源故障将导致进行中的付款失败。 对于重型路由节点，备用或不间断电源(UPS)在断电时很有用。理想情况下，您也应该为您的互联网路由器准备一个UPS设备。
 
-==== Switching Server Configuration in the Cloud
+备份:: 备份至关重要，因为故障可能导致数据丢失，从而导致资金损失。您可能需要考虑多种不同的数据备份方案。它可以是自动备份到您的云服务器或Web服务器。或者，它可以是自动本地硬件备份，例如第二个硬盘驱动器。为获得最佳结果，可以将本地备份和远程备份结合起来。
 
-((("Lightning node operation","switching server configuration in the cloud")))When renting a cloud server, it is often cost effective to change the configuration between two phases of operation. A faster CPU and faster storage will be needed during the IBD (e.g., the first day). After the blockchain has synced, the CPU and storage speed requirements are much less, so the performance can be downgraded to a more cost-effective level.
+==== 在云端切换服务器配置
 
-For example, on Amazon's cloud, we would use an 8&ndash;16 GB RAM, 8-core CPU (e.g., t3-large or m3.large) and faster 400 GB SSD (1000+ provisioned input/output operations per second [IOPS]) for the IBD, reducing its time to just 6-8 hours. Once that is complete, we would switch the server instance to a 2 GB RAM, 2-core CPU (e.g., t3.small) and storage to a general purpose 1 TB HDD. This will cost about the same as if you ran it on the slower server the entire time, but it will get you up and running in less than a day instead of having to wait almost a week for the IBD.
 
-===== Permanent data storage (drive)
+((("Lightning node operation","switching server configuration in the cloud")))租用云服务器时，在两个操作阶段之间更改配置通常具有成本效益。在 IBD 期间（例如，第一天），将需要更快的 CPU 和更快的存储。 区块链同步后，对 CPU 和存储速度的要求要低得多，因此可以将性能降级到更具成本效益的水平。
 
-((("data storage")))((("Lightning node operation","permanent data storage")))If you use a mini PC or rent a server, the storage can be the most expensive part, costing as much as the computer and connectivity (data) added together.
 
-Let's have a look at the different options available. First, there are two main types of drives, HDDs and SSDs. HDDs are cheaper and SSDs are faster, but both do the job.
+例如，在 Amazon 的云上，当操作处于IBD期间时，我们将使用 8&ndash;16 GB RAM、8 核 CPU（例如 t3-large 或 m3.large）和更快的 400 GB SSD（每秒 1000 多个预置输入/输出操作 [IOPS] ) ，将其时间减少到仅 6-8 小时。 完成后，我们会将服务器实例切换到 2 GB RAM、2 核 CPU（例如 t3.small）并将存储切换到通用 1 TB HDD。 这将与您一直在较慢的服务器上运行它的成本大致相同，但它会让您在不到一天的时间内启动并运行完整的闪电服务，而不必等待近一周的 IBD。
 
-((("Non-Volatile Memory Express (NVMe)")))((("solid state drives (SSDs)")))((("SSDs (solid state drives)")))The fastest SSDs available today use the Non-Volatile Memory Express (NVMe) interface. The NVMe SSDs are faster in high-end machines, but also more costly.
-Traditional SATA-based SSDs are cheaper, but not as fast. SATA SSDs perform sufficiently well for your node setup.
-Smaller computers might not be able to take advantage of NVMe SSDs.
-For example, the Raspberry Pi 4 cannot benefit from them because of the limited bandwidth of its USB port.
+===== 永久数据存储
 
-To choose the size, let's look at the Bitcoin blockchain. As of August 2021, its size is 360 GB, including the transaction index, and grows by roughly 60 GB per year. If you want to have some margin available for future growth or to install other data on your node, purchase at least a 512 GB drive, or better yet, a 1 TB drive.(((range="endofrange", startref="ix_05_node_operations-asciidoc1")))
+((("data storage")))((("Lightning node operation","permanent data storage")))如果您使用迷你 PC 或租用服务器，则存储可能是最昂贵的部分，其成本可能会与计算机及网络连接加在一起的成本一样多。
+
+让我们看看可用的不同选项。 首先，有两种主要类型的驱动器，HDD 和 SSD。 HDD 更便宜，SSD 更快，但两者都能胜任。
+
+((("Non-Volatile Memory Express (NVMe)")))((("solid state drives (SSDs)")))((("SSDs (solid state drives)")))当今最快的 SSD 使用非易失性内存快速 (NVMe) 接口。 NVMe SSD 在高端机器中速度更快，但成本也更高。
+传统的基于 SATA 的 SSD 更便宜，但速度没有那么快。 SATA SSD 的性能足以满足您的节点设置。
+较小的计算机可能无法利用 NVMe SSD。例如，Raspberry Pi 4 无法从中受益，因为其 USB 端口的带宽有限。
+
+要选择大小，让我们看一下比特币区块链。 截至 2021 年 8 月，它的大小为360GB，包括交易指数，每年大约增长 60 GB。 如果您想为未来的增长或在您的节点上安装其他数据留出一些余量，请购买至少512GB的驱动器，或者更好的是，购买 1 TB 的驱动器。(((range="endofrange", startref="ix_05_node_operations-asciidoc1")))
 
 [[helpers]]
-=== Using an Installer or Helper
+=== 使用安装程序或帮助程序
 
-((("helpers (installation/configuration software)", id="ix_05_node_operations-asciidoc2", range="startofrange")))((("Lightning node operation","using an installer or helper", id="ix_05_node_operations-asciidoc3", range="startofrange")))Installing a Lightning node or a Bitcoin node may be daunting if you are not familiar with a command-line environment. Luckily, there are a number of projects that make "helpers," i.e., software that installs and configures the various components for you. You will still need to learn some command-line incantations to interact with your node, but most of the initial work is done for you.
+((("helpers (installation/configuration software)", id="ix_05_node_operations-asciidoc2", range="startofrange")))((("Lightning node operation","using an installer or helper", id="ix_05_node_operations-asciidoc3", range="startofrange")))如果您不熟悉命令行环境，安装闪电节点或比特币节点可能会令人生畏。幸运的是，有许多项目已经开发了安装“助手”，方便用户安装和配置各种组件。您仍然需要学习一些命令行来与您的节点交互，但大部分初始工作已经为您完成。
 
 ==== RaspiBlitz
 
-((("helpers (installation/configuration software)","RaspiBlitz")))((("RaspiBlitz")))One of the most popular and complete "helpers" is _RaspiBlitz_ (<<RaspiBlitz>>), a project built by Christian Rotzoll. It is intended to be installed on a Raspberry Pi 4. RaspiBlitz comes with a recommended hardware kit that you can build in a matter of hours or at most a weekend. If you attend a Lightning "hackathon" in your city, you are likely to see many people working on their RaspiBlitz setup, swapping tips, and helping each other. You can find the RaspiBlitz project on https://github.com/rootzoll/raspiblitz[GitHub].
+((("helpers (installation/configuration software)","RaspiBlitz")))((("RaspiBlitz")))最受欢迎和最完整的“助手”之一是 _RaspiBlitz_（<<RaspiBlitz>>），它是由Christian Rotzoll 构建的项目。 其安装场景主要在 Raspberry Pi 4 上。RaspiBlitz 附带推荐的硬件套件，您可以在几个小时或最多一个周末内构建它。 如果你在你的城市参加闪电“黑客马拉松”，你可能会看到很多人在他们的 RaspiBlitz 上工作，相互交流使用心得，并互相帮助。 您可以在 https://github.com/rootzoll/raspiblitz[GitHub] 上找到 RaspiBlitz 项目。
 
-In addition to a Bitcoin and Lightning node, RaspiBlitz can install a number of additional services, such as:
+除了比特币和闪电节点之外，RaspiBlitz 还可以安装许多附加服务，例如：
 
-* Tor (run as hidden service)
-* ElectRS (Electrum server in Rust)
-* BTCPay Server (cryptocurrency payment processor)
-* BTC RPC Explorer (Bitcoin blockchain explorer)
-* Ride The Lightning (Lightning node management GUI)
-* LNbits (Lightning wallet/accounts system)
-* Specter Desktop (multisig Trezor, Ledger, Coldcard wallet, and Specter-DIY)
-* lndmanage (command-line interface for advanced channel management)
-* Loop (submarine swaps service)
-* JoinMarket (CoinJoin service)
+* Tor（作为隐藏服务运行）
+* ElectRS（Rust 中的 Electrum 服务器）
+* BTCPay Server（加密货币支付处理器）
+* BTC RPC Explorer（比特币区块链浏览器）
+* Ride The Lightning（闪电节点管理 GUI）
+* LNbits（闪电钱包/账户系统）
+* Spectre 桌面（multisig Trezor、Ledger、Coldcard 钱包和 Spectre-DIY）
+* lndmanage（用于高级通道管理的命令行界面）
+* Loop（潜艇交换服务）
+* JoinMarket（CoinJoin服务）
 
 [[RaspiBlitz]]
 .A RaspiBlitz node
@@ -179,7 +168,7 @@ In addition to a Bitcoin and Lightning node, myNode can optionally install a var
 
 ==== Umbrel
 
-((("helpers (installation/configuration software)","Umbrel", id="ix_05_node_operations-asciidoc4", range="startofrange")))((("Umbrel", id="ix_05_node_operations-asciidoc5", range="startofrange")))Famous for their UX/UI (shown in <<umbrel>>), _Umbrel_ provides a very easy and accessible way to get your Bitcoin and Lightning node up and running in no time, especially for beginners. A very distinctive feature is that Umbrel utilizes Neutrino/SPV during the IBD so you can instantly start using your node. Once Bitcoin Core is fully synced in the background, it automatically switches over and disables SPV mode. Umbrel OS supports the Raspberry Pi 4 and can also be installed on any Linux-based OS or on a virtual machine on macOS or Windows. You can also connect any wallet that supports Bitcoin Core P2P, Bitcoin Core RPC, the Electrum protocol, or lndconnect.
+((("helpers (installation/configuration software)","Umbrel", id="ix_05_node_operations-asciidoc4", range="startofrange")))((("Umbrel", id="ix_05_node_operations-asciidoc5", range="startofrange")))Famous for their UX/UI (shown in <<umbrel>>), _Umbrel_ provides a very easy and accessible way to get your Bitcoin and Lightning node up and running in no time, especially for beginners. A very distinctive feature is that Umbrel utilizes Neutrino/SPV during the initial block download (IBD) so you can instantly start using your node. Once Bitcoin Core is fully synced in the background, it automatically switches over and disables SPV mode. Umbrel OS supports the Raspberry Pi 4 and can also be installed on any Linux-based OS or on a virtual machine on macOS or Windows. You can also connect any wallet that supports Bitcoin Core P2P, Bitcoin Core RPC, the Electrum protocol, or lndconnect.
 
 There's no need to wait for a rainy day&mdash;you can go right to https://getumbrel.com[Umbrel] to learn more.
 
@@ -443,8 +432,8 @@ For this test to work, you have to have either a Bitcoin or Lightning node (or b
 
 You can use some very popular and useful websites to find out what is your external IP address and whether it allows and forwards incoming connections to a known port. Here are two that are reliable:
 
-* https://canyouseeme.org[]
-* https://www.whatismyip.com/port-scanner[]
+* https://canyouseeme.org/
+* https://www.whatismyip.com/port-scanner/
 
 By default, these services only allow you to check incoming connections to the IP address from which you are connecting. This is done to prevent you from using the service to scan other people's networks and computers. You will see your router's external IP address and a field for entering a port number. If you haven't changed the default ports in your node configuration, try port 8333 (Bitcoin) and/or 9735 (Lightning).
 
@@ -545,7 +534,7 @@ This is a list of the most basic security measures. It is by no means exhaustive
 
 ==== Node Access
 
-((("Lightning node operation","node access")))((("remote procedure call (RPC) API")))((("RPC (remote procedure call) API")))Your Lightning node will expose a remote procedure call (RPC) API. This means that your node can be controlled remotely by commands sent to a specific TCP port. Access control to that RPC API is achieved by some form of user authentication. Depending on the type of Lightning node you set up, this will either be done by pass:[<span class="keep-together">username/password</span>] authentication or by a mechanism called an authentication _macaroon_. As the name implies, a macaroon is a more sophisticated type of cookie. Unlike a cookie, it is cryptographically signed and can express a set of access pass:[<span class="keep-together">capabilities</span>].
+((("Lightning node operation","node access")))((("remote procedure call (RPC) API")))((("RPC (remote procedure call) API")))Your Lightning node will expose a remote procedure call (RPC) API. This means that your node can be controlled remotely by commands sent to a specific TCP port. Access control to that RPC API is achieved by some form of user authentication. Depending on the type of Lightning node you set up, this will either be done by username/password authentication or by a mechanism called an authentication _macaroon_. As the name implies, a macaroon is a more sophisticated type of cookie. Unlike a cookie, it is cryptographically signed and can express a set of access capabilities.
 
 For example, LND uses macaroons to grant access to the RPC API. By default, the LND software creates three macaroons with different levels of access, called +admin+, +invoice+, and +readonly+. Depending on which macaroon you copy and use in your RPC client, you either have _read-only_ access, _invoice_ access (which includes the read-only capabilities), or _admin_ access, which gives you full control. There is also a macaroon +bakery+ function in LND that can construct macaroons with any combination of capabilities with very fine-grained control.
 
@@ -572,11 +561,11 @@ You can see that SCBs are not a foolproof safeguard. They are a weak compromise 
 
 Channel backup mechanisms are still a work in progress and a weakness in most Lightning implementations.
 
-((("Lightning Network Daemon (LND) node project","SCBs and")))At the time of writing this book, only LND offers a built-in mechanism for SCBs. Eclair has a similar mechanism deployed for server-side deployments, although Eclair Mobile does offer optional backup to a Google Drive. `c-lightning` recently merged the necessary interfaces for a plug-in to implement channel backups. Unfortunately, there is no consistent, agreed upon backup mechanism across different node pass:[<span class="keep-together">implementations</span>].
+((("Lightning Network Daemon (LND) node project","SCBs and")))At the time of writing this book, only LND offers a built-in mechanism for SCBs. Eclair has a similar mechanism deployed for server-side deployments, although Eclair Mobile does offer optional backup to a Google Drive. `c-lightning` recently merged the necessary interfaces for a plug-in to implement channel backups. Unfortunately, there is no consistent, agreed upon backup mechanism across different node implementations.
 
 File-based backups of the Lightning node databases are at best a partial solution because you run the risk of backing up an inconsistent database state. In addition, you may not reliably catch the latest state commitments. It is much better to have a backup mechanism that is triggered every time there is a state change in a channel, thereby ensuring data consistency.
 
-To set up SCBs in LND, set the +backupfilepath+ parameter either on the command line or in the configuration file. LND will then save an SCB file in that directory path. Of course, that's only the first step of the solution. Now, you have to set up a mechanism that monitors this file for changes. Each time the file changes, pass:[<span class="keep-together">the backup</span>] mechanism must copy this file to another, preferably off-site disk. Such backup mechanisms are beyond the scope of this book. Nonetheless, any sophisticated backup solution should be able to handle this scenario. Recall, the backup files should be encrypted too.
+To set up SCBs in LND, set the +backupfilepath+ parameter either on the command line or in the configuration file. LND will then save an SCB file in that directory path. Of course, that's only the first step of the solution. Now, you have to set up a mechanism that monitors this file for changes. Each time the file changes, the backup mechanism must copy this file to another, preferably off-site disk. Such backup mechanisms are beyond the scope of this book. Nonetheless, any sophisticated backup solution should be able to handle this scenario. Recall, the backup files should be encrypted too.
 
 ==== Hot Wallet Risk
 
@@ -626,7 +615,7 @@ You could do this by trusting an intermediary to act as a gateway, but this risk
 
 [NOTE]
 ====
-To use the Loop service, you must be running an LND Lightning node.
+To use the Loop service you must be running an LND Lightning node.
 ====
 
 For the purpose of reducing the balance of your Lightning hot wallet, you would use the Loop Out service. To use the Loop service, you need to install some additional software on your node. The Loop software runs alongside your LND node and provides some command-line tools to execute submarine swaps. You can find the Loop software and installation instructions on https://github.com/lightninglabs/loop[GitHub].
@@ -954,7 +943,7 @@ There are a number of competing projects that offer web-based Lightning node man
 <<rtl-web-interface>> shows an example screenshot of RTL's web interface, as provided on the project repository.
 
 [[rtl-web-interface]]
-.Example RTL web interface
+.Example Ride The Lightning (RTL) web interface
 image::images/mtln_0505.png[]
 
 ==== lndmon
@@ -966,5 +955,8 @@ image::images/mtln_0505.png[]
 ((("Lightning node operation","ThunderHub")))((("node management","ThunderHub")))((("ThunderHub")))https://thunderhub.io[ThunderHub] is a very aesthetically pleasing web-based graphical user interface similar to RTL but exclusive to LND. It can be used to make payments, rebalance channels, and manage the node through a variety of features.
 
 === Conclusion
+=== 总结
 
 As you maintain your node and gain experiences, you will learn a lot about the Lightning Network. Being a node operator is a challenging but rewarding task. Mastering these skills will allow you to contribute to the growth and development of this technology and the Lightning Network itself. You will furthermore gain the ability to send and receive Lightning payments with the greatest degree of control and ease. You will play a central role in the network's infrastructure and not just be a participant on the edges.(((range="endofrange", startref="ix_05_node_operations-asciidoc0")))
+
+随着您维护您的节点并获得经验，您将学到很多关于闪电网络的知识。 成为节点操作员是一项具有挑战性但有益的任务。 掌握这些技能将使您能够为这项技术和闪电网络本身的成长和发展做出贡献。 您还将获得以最大程度的控制和轻松发送和接收闪电支付的能力。 您将在网络基础设施中扮演核心角色，而不仅仅是边缘的参与者。(((range="endofrange", startref="ix_05_node_operations-asciidoc0")))

@@ -1,81 +1,94 @@
 [[conclusion_chapter]]
-== Conclusion
 
-((("innovations in Lightning", id="ix_17_conclusion-asciidoc0", range="startofrange")))In just a few years, the Lightning Network has gone from a whitepaper to a rapidly growing global network. As Bitcoin's second layer, it has delivered on the promise of fast, inexpensive, and private payments. Additionally, it has started a tsunami of innovation, as it unleashes developers from the constraints of lockstep consensus that exist in Bitcoin development.
+== 总结
 
-Innovation in the Lightning Network is happening in several different levels:
+((("innovations in Lightning", id="ix_17_conclusion-asciidoc0", range="startofrange")))在短短几年内，闪电网络已经从一份白皮书发展成为一个快速发展的全球网络。作为比特币的第二层，它兑现了快速、廉价和隐私支付的承诺。 此外，它也引发了一场创新海啸，因为它将开发人员从比特币开发中必须遵循共识的限制中解放出来。
 
-* At Bitcoin's Core protocol, providing use and demand for new Bitcoin Script opcodes, signing algorithms, and optimizations
-* At the Lightning protocol level, with new features deployed rapidly network wide
-* At the payment channel level, with new channel constructs and enhancements
-* As distinct opt-in features deployed end-to-end by independent implementations that senders and recipients can use if they want
-* With new and exciting Lightning Applications (LApps) build on top of the clients and protocols
+闪电网络的创新发生在以下几个不同的层面：
 
-Let's look at how these innovations are changing Lightning now and in the near future.
 
-=== Decentralized and Asynchronous Innovation
+* 在比特币的核心协议中，提出对比特币新操作码、签名算法和优化的使用和需求
+* 在闪电协议级别，可以让新功能在全网范围内快速部署
+* 在支付通道层面，具有新的通道结构和增强功能
+* 可以按需启动闪电节点功能，各个节点独立部署，付款人和收款人可以根据需要使用这些功能
+* 在客户端和协议之上，构建令人兴奋的闪电应用程序 (LApps)
 
-((("innovations in Lightning","decentralized/asynchronous nature of")))Lightning isn't bound by lockstep consensus, as is the case with Bitcoin. That means that different Lightning clients can implement different features and negotiate their interactions (see <<feature_bits>>). As a result, innovation in the Lightning Network is occurring at a much faster rate than in Bitcoin.
 
-Not only is Lightning advancing rapidly, but it is creating demand for new features in the Bitcoin system. Many recent and planned innovations in Bitcoin are both motivated and justified by their use in the Lightning Network. In fact, the Lightning Network is often mentioned as an example use case for many of the new features.
+让我们看看这些创新如何在现在和不久的将来改变 Lightning。
+
+=== 去中心化和异步创新
+
+((("innovations in Lightning","decentralized/asynchronous nature of")))闪电网络不会像比特币网络一样，受强共识的约束。这意味着不同的 Lightning 客户端可以实现不同的功能并协商彼此的交互（参见 <<feature_bits>>）。 因此，闪电网络的创新速度比比特币快得多。
+
+闪电网络不仅发展迅速，而且还不断提出了对比特币系统新功能的需求。 比特币的许多近期和计划中的创新，都是由它们在闪电网络中的使用所激发和证明的。事实上，闪电网络经常被称为许多新功能的示例用例。
 
 [[bitcoin_prot_17]]
-==== Bitcoin Protocol and Bitcoin Script Innovation
+==== 比特币协议和脚本创新
 
-((("Bitcoin (system)","innovations motivated by Lightning Network use cases")))((("Bitcoin script","innovations motivated by Lightning Network use cases")))((("innovations in Lightning","Bitcoin innovations motivated by Lightning Network use cases")))The Bitcoin system is, by necessity, a conservative system that has to preserve compatibility with consensus rules to avoid unplanned forks of the blockchain or partitions of the P2P network. As a result, new features require a lot of coordination and testing before they are implemented in mainnet, the live production system.
 
-Here are some of the current or proposed innovations in Bitcoin that are motivated by use cases in the Lightning Network:
+((("Bitcoin (system)","innovations motivated by Lightning Network use cases")))((("Bitcoin script","innovations motivated by Lightning Network use cases")))((("innovations in Lightning","Bitcoin innovations motivated by Lightning Network use cases")))比特币系统注定是一个保守的系统，它必须保持与共识规则的兼容性，以避免区块链的计划外分叉或 P2P 网络的分裂。 因此，新功能在主网（即生产环境）中实施之前需要大量的协调和测试。
 
-Neutrino:: A lightweight client protocol with improved privacy features over the legacy SPV protocol. Neutrino is mostly used by Lightning clients to access the Bitcoin blockchain.
+以下是比特币受闪电网络用例推动的正在进行的或提议中的一些创新：
 
-Schnorr signatures:: Introduced as part of the _Taproot_ soft fork, Schnorr signatures will enable flexible Point Time-Locked Contracts (PTLCs) for channel construction in Lightning. This might in particular make use of revocable signatures instead of revocable transactions.
 
-Taproot:: Also part of the November 2021 soft fork that introduces Schnorr signatures, Taproot allows complex scripts to appear as single-payer, single-payee payments, and indistinguishable from the most common type of payment on Bitcoin. This will allow Lightning channel cooperative (mutual) closure transactions to appear indistinguishable from simple payments and increase privacy for LN users.
+Neutrino:: 一种轻量级客户端协议，与传统 SPV 协议相比具有改进的隐私功能。 闪电网络客户端主要使用 Neutrino 来访问比特币区块链。
 
-Input rebinding:: Also known by the names SIGHAS_NOINPUT or SIGHASH_ANYPREVOUT, this planned upgrade to the Bitcoin Script language is primarily motivated by advanced smart contracts such as the eltoo channel protocol.
 
-Covenants:: Currently in the early stages of research, covenants allow transactions to create outputs that constrain future transactions which spend them. This mechanism could increase security for Lightning channels by making it possible to enforce address whitelisting in commitment transactions.
+Schnorr signatures:: 作为 _Taproot_ 软分叉的一部分引入，Schnorr 签名将为闪电网络中的通道构建启用灵活的点时间锁合约(PTLC)。这在用可撤销签名替代可撤销交易方面，会非常有用。
 
-==== Lightning Protocol Innovation
 
-((("innovations in Lightning","Lightning P2P protocol")))((("Lightning Network Protocol","innovations in")))The Lightning P2P protocol is highly extensible and has undergone a lot of change since its inception. The "It's OK to be odd" rule used in feature bits (see <<feature_bits>>) ensures that nodes can negotiate the features they support, enabling multiple independent upgrades to the protocol.
+Taproot:: 作为 2021 年 11 月引入 Schnorr 签名的软分叉的一部分，Taproot 允许复杂的脚本显示为单一付款人、单一收款人支付，并且与比特币上最常见的支付类型没有区别。 这将允许闪电通道合作（相互）关闭交易看起来与简单支付没有区别，并增加 LN 用户的隐私。
 
-==== TLV Extensibility
+Input rebinding:: 也称为 SIGHAS_NOINPUT 或 SIGHASH_ANYPREVOUT，这个在 比特币脚本语言的升级计划中，其主要动机是提供高级智能合约的能力，例如 eltoo 通道协议。
 
-((("innovations in Lightning","TLV extensibility")))((("Type-Length-Value (TLV) format","innovations in")))The Type-Length-Value (see <<tlv>>) mechanism for extending the messaging protocol is extremely powerful and has already enabled the introduction of several new capabilities in Lightning while maintaining both forward and backward compatibility.
-A prominent example, which is currently being developed and makes use of this, is path blinding and trampoline payments. This allows a recipient to hide itself from the sender, but also allows mobile clients to send payments without the necessity of storing the full channel graph on their devices by using a third party to which they don't need to reveal the final recipient.
 
-==== Payment Channel Construction
+Covenants:: 目前处于研究的早期阶段，契约允许交易创建限制未来交易的输出。 这种机制可以通过在承诺交易中实施地址白名单，来提高闪电通道的安全性。
 
-((("innovations in Lightning","payment channel construction")))((("payment channel","innovations in construction")))Payment channels are an abstraction that is operated by two channel partners. As long as those two are willing to run new code, they can implement a variety of channel mechanisms simultaneously. In fact, recent research suggests that channels could even be upgraded to a new mechanism dynamically, without closing the old channel and opening a new channel type.
+==== 闪电协议创新
 
-eltoo:: A proposed channel mechanism that uses input-rebinding to significantly simplify the operation of payment channels and remove the need for the penalty mechanism. It needs a new Bitcoin signature type before it can be implemented
+((("innovations in Lightning","Lightning P2P protocol")))((("Lightning Network Protocol","innovations in")))闪电网络中的P2P协议，具有高度可扩展性，自诞生以来经历了很多变化。 特性位中使用的“可以是奇数”规则（参见 <<feature_bits>>），确保节点可以协商它们支持的特性，从而实现对协议的多个独立升级。
 
-==== Opt-In End-to-End Features
+==== TLV的伸缩性
 
-((("innovations in Lightning","opt-in end-to-end features")))Point Time-Locked Contracts:: A different approach to HTLCs, PTLCs can increase privacy, reduce information leaked to intermediary nodes, and operate more efficiently than HTLC-based channels.
+((("innovations in Lightning","TLV extensibility")))((("Type-Length-Value (TLV) format","innovations in")))用于扩展消息传递协议的 Type-Length-Value（参见 <<tlv>>）机制非常强大，并且已经在 Lightning 中引入了一些新功能，同时保持了向前和向后的兼容性。
+目前正在开发并利用这一点的一个突出例子是路径盲寻和蹦床支付。 这允许接收者向发送者隐藏自己，同时也允许移动客户端在使用第三方机构时，不需要将完整的通道图存储在移动客户端设备上，也可以发送支付，并无需透露最终收款方。
 
-Large channels:: Large or _Wumbo_ channels were introduced in a dynamic way to the network without requiring coordination. Channels that support large payments are advertized as part of the channel announcement messages and can be used in an opt-in manner.
+==== 支付通道构建
 
-Multipart payments (MPP):: MPP was also introduced in an opt-in manner, but even better only requires the sender and recipient of a payment to be able to do MPP. The rest of the network simply routes HTLCs as if they are single-part payments.
+((("innovations in Lightning","payment channel construction")))((("payment channel","innovations in construction")))支付通道是由两个通道合作伙伴共同操作的抽象。只要这两者愿意运行新代码，他们就可以同时实现多种通道机制。事实上，最近的研究表明，通道甚至可以动态升级到新的机制，而无需关闭旧通道并打开新的通道类型。
 
-JIT routing:: An optional method that can be used by routing nodes to increase their reliability and to protect themselves from being spammed.
+eltoo:: 该提议的通道机制使用输入重绑定(input-rebinding)来显著简化支付通道的操作，并消除罚款机制的需要。在实施之前，需要一种新的比特币签名类型。
 
-Keysend:: An upgrade introduced independently by Lightning client implementations, it allows the sender to send money in an "unsolicited" and asynchronous way without requiring an invoice first.
+==== 自开启的端到端特性
 
-HODL invoicesfootnote:[The word _HODL_ comes from an excited misspelling of the word "HOLD" shouted in a forum to encourage people not to sell bitcoin in a panic.]:: Payments where the final HTLC is not collected, committing the sender to the payment, but allowing the recipient to delay collection until some other condition is satisfied, or cancel the invoice without collection. This was also implemented independently by different Lightning clients and can be used in an opt-in manner.
+((("innovations in Lightning","opt-in end-to-end features")))Point Time-Locked Contracts (PTLCs):: 与 HTLC 不同的方法是，PTLC 可以增加隐私，减少泄露给中间节点的信息，并且比基于 HTLC 的通道更有效地运行。
 
-Onion routed message services:: The onion routing mechanism and the underlying public key database of nodes can be used to send data that is unrelated to payments, such as text messages or forum posts. The use of Lightning to enable paid messaging as a solution to spam posts and Sybil attacks (spam) is another innovation that was implemented independently of the core protocol.
 
-Offers:: Currently proposed as BOLT #12 but already implemented by some nodes, this is a communication protocol to request (recurring) invoices from remote nodes via Onion messages.
+Large channels:: 大型或 _Wumbo_ 通道以动态方式加入闪电网络，无需协调。 支持大额支付的通道作为通道公告消息的一部分进行广告宣传，并且可以以自主选择的方式使用。
+
+Multipart payments (MPP):: MPP 也以自主裁决的方式引入，优势是只要求付款的发送方和接收方进行 MPP。 网络的其余部分仍然是简单地路由 HTLC，就好像它们是单部分支付一样。
+
+JIT routing:: 路由节点可以使用的一种可选方法，以提高其可靠性并保护自己免受垃圾邮件的侵害。
+
+
+Keysend:: 由 Lightning 客户端实施独立引入的升级，它允许付款人以“不请自来”的异步方式汇款，而无需先开具发票。
+
+
+HODL invoices footnote:[The word _HODL_ comes from an excited misspelling of the word "HOLD" shouted in a forum to encourage people not to sell bitcoin in a panic.]:: 该付款方式中，最终的 HTLC 并没有被收集，这会使发送方承担付款责任，但允许接收方延迟收款直到某些其他条件被满足，或在未收到付款的情况下取消发票。这也是由不同的闪电网络客户端独立实现的，可以以一种选择性的方式使用。
+
+
+Onion routed message services:: 洋葱路由机制和底层的节点公钥数据库可用于发送与支付无关的数据，例如短信或论坛帖子。 使用闪电网络来启用付费消息，以此作为应对垃圾邮件/帖子和 Sybil 攻击（垃圾邮件）的解决方案，是独立于核心协议实施的另一项创新。
+
+
+Offers:: 目前提议为 BOLT #12，但已由一些节点实施，这是一种通过 Onion 消息从远程节点请求（循环）发票的通信协议。
 
 [[lapps]]
-=== Lightning Applications (LApps)
+===  闪电应用
 
-((("innovations in Lightning","Lightning Applications")))((("Lightning Applications (LApps)")))While still in their infancy, we are already seeing the emergence of interesting Lightning Applications. Broadly defined as an application that uses the Lightning Protocol or a Lightning client as a component, LApps are the application layer of Lightning. 
-A prominent example is LNURL, which provides a similar functionality as BOLT #12 offers, but just over HTTP and Lightning addresses. It works on top of offers to provide users with an email-style address to which others can send funds while the software in the background requests an invoice against the LNURL endpoint of the node.
-Further LApps are being built for simple games, messaging applications, microservices, payable APIs, paid dispensers (e.g., fuel pumps), derivative trading systems, and much more.
+((("innovations in Lightning","Lightning Applications")))((("Lightning Applications (LApps)"))) 闪电应用虽然仍处于起步阶段，但我们已经看到了很多有趣的闪电应用程序的出现。 广义上定义为使用闪电协议或闪电客户端作为组件的应用程序，LApp 是闪电的应用层。
+一个突出的例子是 LNURL，它提供了与 BOLT #12 类似的功能，目前是基于 HTTP 和 Lightning 地址实现的。 它在为用户提供电子邮件样式地址的基础上工作，其他人可以向该地址发送资金，而后台软件会根据节点的 LNURL 端点请求发票。
+未来将会有更多的LAPP被构建，他们包括简单游戏、消息传递应用程序、微服务、支付 API、付费分配器（例如燃油泵）、衍生交易系统等等。
 
-=== Ready, Set, Go!
+=== 准备出发
 
-The future is looking bright. The Lightning Network is taking Bitcoin to new unexplored markets and applications. Equipped with the knowledge in this book, you can explore this new frontier or maybe even join as a pioneer and forge a new path.(((range="endofrange", startref="ix_17_conclusion-asciidoc0")))
+前途一片光明。 闪电网络正在将比特币带到新的未开发市场和应用程序中。 借助本书中的知识，您可以探索这个新领域，甚至可以作为先驱加入并开辟新的道路。(((range="endofrange", startref="ix_17_conclusion-asciidoc0")))

@@ -1,90 +1,97 @@
 [[payment_channels]]
-== Payment Channels
+== 支付通道
 
-((("payment channel", id="ix_07_payment_channels-asciidoc0", range="startofrange")))In this chapter we will dive into payment channels and see how they are constructed. We will start with Alice's node opening a channel to Bob's node, building on the examples presented in the beginning of this book.
 
-[role="pagebreak-after"]
-The messages exchanged by Alice and Bob's nodes are defined in https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md["BOLT #2: Peer Protocol for Channel Management"]. The transactions created by Alice and Bob's nodes are defined in https://github.com/lightningnetwork/lightning-rfc/blob/master/03-transactions.md["BOLT #3: Bitcoin Transaction and Script Formats"]. In this chapter we are focusing on the "Channel open and close" and "Channel state machine" parts of the Lightning protocol architecture, highlighted by an outline in the center (peer-to-peer layer) of <<LN_protocol_channel_highlight>>. 
+((("payment channel", id="ix_07_payment_channels-asciidoc0", range="startofrange")))在本章中，我们将深入研究支付通道并了解它们是如何被构建的。 我们将以本书开头的示例为基础，从 Alice 的节点开始，打开一个到Bob 的支付通道。
+
+
+
+Alice 和 Bob 的节点所交换的消息在 https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md["BOLT #2: Peer Protocol for Channel Management"] 中定义。 Alice 和 Bob 的节点所创建的交易在 https://github.com/lightningnetwork/lightning-rfc/blob/master/03-transactions.md["BOLT #3: Bitcoin Transaction and Script Formats"] 中定义。 在本章中，我们将重点关注闪电协议架构的“通道打开和关闭”和“通道状态机”部分，这些内容在 <<LN_protocol_channel_highlight>> 的中心（点对点层）中突出显示。
 
 [[LN_protocol_channel_highlight]]
 .Payment channels in the Lightning protocol suite
 image::images/mtln_0701.png["Payment channels in the Lightning protocol suite"]
 
-=== A Different Way of Using the Bitcoin System
+=== 使用比特币系统的另一种方式
 
-((("payment channel","Lightning Network as different way of using Bitcoin system")))The Lightning Network is often described as a "Layer 2 Bitcoin Protocol," which makes it sound distinct from Bitcoin. Another way to describe Lightning is as a "smarter way to use Bitcoin" or just as an "application on top of Bitcoin." Let's explore that. 
+((("payment channel","Lightning Network as different way of using Bitcoin system")))闪电网络通常被描述为“2层比特币协议”，这使它听起来与比特币不同。 描述闪电网络的另一种方式是“更智能的方式使用比特币”或只是“比特币之上的应用程序”。让我们探索一下。
 
-Historically, Bitcoin transactions are broadcast to everyone and recorded on the Bitcoin blockchain to be considered valid. As we will see, however, if someone holds a presigned Bitcoin transaction that spends a 2-of-2 multisig output that gives them the exclusive ability to spend that Bitcoin, they effectively own that Bitcoin even if they don't broadcast the transaction.
+通常来说，比特币交易被广播给所有人并记录在比特币区块链上被认为是有效的。 然而，正如我们将看到的，如果有人持有一笔预先签署的比特币交易，该交易花费了 2-of-2 的多重签名输出，从而赋予了他们使用该比特币的独有能力，那么即使他们不广播该交易，他们实际上也拥有该比特币。
 
-You can think of the presigned Bitcoin transaction like a postdated check (or cheque), one that can be cashed at any time. Unlike the traditional banking system, however, this transaction is not a "promise" of payment (also known as an IOU), but a verifiable bearer instrument that is equivalent to cash. So long as the bitcoin referenced in the transaction has not already been spent at the time of redemption (or at the time you try to "cash" the check), the Bitcoin system guarantees that this presigned transaction can be broadcast and recorded at any time. This is only true, of course, if this is the only presigned transaction. Within the Lightning Network two or more such presigned transactions exist at the same time; therefore, we need a more sophisticated mechanism to still have the functionality of such a verifiable bearer instrument, as you will also learn in this chapter.
+你可以将预先签署的比特币交易想象成一张远期支票（或支票），可以随时兑现。然而，与传统银行系统不同的是，这笔交易不是支付“承诺”（也称为借据），而是一种可验证的不记名票据，相当于现金。 只要交易中引用的比特币在赎回时（或在您尝试“兑现”支票时）尚未花费，比特币系统保证可以随时广播和记录此预签名交易. 当然，这是唯一正确的，如果这是唯一的预签名交易。 在闪电网络中同时存在两个或多个这样的预签名交易；因此，我们需要一个更复杂的机制来保证这种可验证的不记名票据功能的实现，正如您将在本章中学习的那样。
 
-The Lightning Network is simply a different and creative way of using Bitcoin. In the Lightning Network a combination of recorded (on-chain) and presigned but withheld (off-chain) transactions form a "layer" of payments that is a faster, cheaper, and more private way to use Bitcoin. You can see this relationship between on-chain and off-chain Bitcoin transactions in <<on_off_chain>>. 
+闪电网络以一种不同的创造性的方式在使用比特币。在闪电网络中，记录（链上）和预签名但保留（链外）交易的组合形成了一个支付“层”，这是一种更快、更便宜、更私密的比特币使用方式。 您可以在 <<on_off_chain>> 中看到链上和链下比特币交易之间的这种关系。
 
 [[on_off_chain]]
 .Lightning payment channel made of on-chain and off-chain transactions
 image::images/mtln_0702.png["Lightning payment channel made of on-chain and off-chain transactions"]
 
-Lightning is Bitcoin. It's just a different way of using the Bitcoin system.
 
-=== Bitcoin Ownership and Control
+闪电网络是比特币的一部分。 这只是使用比特币系统的另一种方式。
 
-((("bitcoin (currency)","ownership and control in payment channels", id="ix_07_payment_channels-asciidoc1", range="startofrange")))((("payment channel","bitcoin ownership and control", id="ix_07_payment_channels-asciidoc2", range="startofrange")))Before we understand payment channels, we have to take a small step back and understand how ownership and control work in Bitcoin.
+=== 比特币所有权和控制权
 
-((("private keys","Bitcoin ownership and")))When someone says they "own" bitcoin, they typically mean that they know the private key of a Bitcoin address that has some unspent transaction outputs (see <<bitcoin_fundamentals_review>>). The private key allows them to sign a transaction to spend that bitcoin by transferring it to a different address. In Bitcoin "ownership" of bitcoin can be defined as the _ability to spend_ that bitcoin.
+((("bitcoin (currency)","ownership and control in payment channels", id="ix_07_payment_channels-asciidoc1", range="startofrange")))((("payment channel","bitcoin ownership and control", id="ix_07_payment_channels-asciidoc2", range="startofrange")))在我们了解支付通道之前，我们需要回顾一下比特币的所有权和控制权如何运作。
 
-Keep in mind that the term "ownership" as used in Bitcoin is distinct from the term "ownership" used in a legal sense. A thief who has the private keys and can spend Bitcoin is a _de facto owner_ of that Bitcoin even though they are not a lawful owner.
+((("private keys","Bitcoin ownership and")))当有人说他们“拥有”比特币时，他们通常意味着他们知道一个比特币地址的私钥，该地址有一些未使用的交易输出（参见 <<bitcoin_fundamentals_review>>）。 私钥允许他们签署交易以通过将比特币转移到不同的地址来花费该比特币。 在比特币中，比特币的“所有权”可以定义为对比特币的“消费能力”。
+
+请记住，比特币中使用的“所有权”一词不同于法律意义上的“所有权”一词。 拥有私钥并且可以花费比特币的小偷是该比特币的“事实上的所有者”，即使他们不是合法所有者。
+
 
 [TIP]
 ====
-Bitcoin ownership is only about control of keys and the ability to spend the Bitcoin with those keys. As the popular Bitcoin saying goes: "Your keys, your coins—not your keys, not your coins."
+比特币所有权仅涉及对密钥的控制以及使用这些密钥花费比特币的能力。 正如流行的比特币谚语所说：“你的钥匙，你的硬币——不是你的钥匙，不是你的硬币。”
 ====
 
-==== Diversity of (Independent) Ownership and Multisig
+==== 所有权和多重签名的多样性
 
-((("bitcoin (currency)","diversity of independent ownership and multisig")))Ownership and control of private keys is not always in the hands of one person. That's where things get interesting and complicated. We know that more than one person can come to know the same private key, either through theft or because the original holder of the key makes a copy and gives it to someone else. Are all these people owners? In a practical sense, they are, because any one of the people who know the private key can spend the bitcoin without the approval of any other.
+((("bitcoin (currency)","diversity of independent ownership and multisig")))私钥的所有权和控制权并不总是掌握在一个人手中。 这是让事情变得有趣和复杂的地方。 我们知道，不止一个人可以知道同一个私钥，要么是通过盗窃，要么是因为密钥的原始持有者制作了一份副本并将其交给了其他人。 这些人都是Owner吗？ 实际上，它们是，因为任何一个知道私钥的人都可以在没有任何其他人批准的情况下使用比特币。
 
-Bitcoin also has multisignature addresses where multiple private keys are needed to sign before spending (see <<multisig>>). From a practical perspective, ownership in a multisignature address depends on the quorum (_K_) and total (_N_) defined in the __K__-of-__N__ scheme. A 1-of-10 multisignature scheme would allow any 1 (_K_) of 10 (_N_) signers to spend a bitcoin amount locked in that address. This is similar to the scenario where 10 people have a copy of the same private key and any of them can independently spend it.
+比特币也有多重签名地址，在消费前需要多个私钥签名（参见<<multisig>>）。 从实际的角度来看，多重签名地址的所有权取决于 __K__-of-__N__ 方案中定义的法定人数 (_K_) 和总数 (_N_)。 一个 1-of-10 的多重签名方案将允许 10 个 (_N_) 签名者中的任何 1 个人签名，然后 (_K_) 花费锁定在该地址中的比特币金额。 这类似于 10 个人拥有相同私钥的副本并且任何人都可以独立使用它的场景。
 
-==== Joint Ownership Without Independent Control
+==== 没有独立控制的共同所有权
 
-((("bitcoin (currency)","joint ownership without independent control")))There is also the scenario where _no one_ has quorum. In a 2-of-2 scheme like that used in the Lightning Network, neither signer can spend the bitcoin without obtaining a signature from the other party. Who owns the bitcoin in that case? No one really has ownership because no one has control. They each own the equivalent of a voting share in the decision, but both votes are needed. A key problem (pun intended) with a 2-of-2 scheme, in both Bitcoin and the law, is what happens if one of the parties is unavailable, or if there is a vote deadlock and any one party refuses to cooperate.
+((("bitcoin (currency)","joint ownership without independent control")))还有 _no one_ 有法定人数的情况。 在闪电网络中使用的 2-of-2 方案中，任何一个签名者都不能在没有从另一方获得签名的情况下花费比特币。 在这种情况下，谁拥有比特币？ 没有人真正拥有比特币，因为没有人拥有控制权。 在花费该比特币时，每个人都拥有相当于投票权的份额，但需要两票。 在比特币系统及法律范畴内，2-of-2 方案的一个关键问题（双关语）是，如果其中一方不可用，或者投票陷入僵局并且任何一方拒绝合作，会发生什么。
 
-==== Preventing "Locked" and Un-Spendable Bitcoin
+==== 防止“锁定”和不可使用的比特币
 
-((("bitcoin (currency)","preventing locked and un-spendable bitcoin")))If one of the two signers of a 2-of-2 multisig cannot or will not sign, the funds become un-spendable. Not only can this scenario occur accidentally (loss of keys), but it can be used as a form of blackmail by either party: "I won't sign unless you pay me a part of the funds."
+((("bitcoin (currency)","preventing locked and un-spendable bitcoin")))如果 2-of-2 多重签名的两个签名者之一不能或不会签名，则资金将无法使用。 这种情况不仅会意外发生（丢失钥匙），而且可以被任何一方用作敲诈的一种形式：“除非你支付我一部分资金，否则我不会签字。”
 
-Payment channels in Lightning are based on a 2-of-2 multisig address, with the two channel partners as signers in the multisig. At this time, channels are funded only by one of the two channel partners: when you choose to "open" a channel, you deposit funds into the 2-of-2 multisig address with a transaction. Once that transaction is mined and the funds are in the multisig, you can't get them back without cooperation from your channel partner, because you need their signature (also) to spend the bitcoin.
+Lightning 中的支付通道是基于 2-of-2 的多重签名地址。两个通道合作伙伴是多重签名中的签名者。 目前，通道仅由两个通道合作伙伴之一提供资金：当您选择“打开”通道时，您将资金存入 2-of-2 多重签名地址并进行交易。 一旦该交易被挖掘并且资金在多重签名中，如果没有渠道合作伙伴的合作，您将无法取回它们，因为您需要他们的签名（也）来花费比特币。
 
-In the next section, as we look at how to open (create) a Lightning channel, we will see how we can prevent loss of funds or any blackmail scenario between the two partners by implementing a fairness protocol for the channel construction with the help of presigned transactions that spend the multisig output in a way that gives the peers in the channel exclusive ability to spend one of the outputs which encodes the amount of bitcoin they own in the channel.(((range="endofrange", startref="ix_07_payment_channels-asciidoc2")))(((range="endofrange", startref="ix_07_payment_channels-asciidoc1")))
+在下一节中，当我们研究如何打开（创建）闪电通道时，我们将看到如何通过在 预先签署的交易以某种方式花费多重签名输出，使通道中的对等方能够独自花费其中一个输出，该输出包含他们在通道中拥有的比特币数量。
 
+=== 构建一个支付通道
 
-=== Constructing a Payment Channel
+((("payment channel","elements", id="ix_07_payment_channels-asciidoc3", range="startofrange")))在 <<what_is_payment_channel>> 中，我们将支付通道描述为两个闪电网络节点之间的 _金融关系_，它是通过在两个通道合作伙伴的 2-of-2 多重签名地址里，质押比特币而建立。
 
-((("payment channel","elements", id="ix_07_payment_channels-asciidoc3", range="startofrange")))In <<what_is_payment_channel>>, we described payment channels as a _financial relationship_ between two Lightning nodes, which is established by funding a 2-of-2 multisignature address from the two channel partners.
+假设 Alice 想要构建一个支付通道，允许她直接连接到 Bob 的商店。 首先，两个节点（Alice 和 Bob）必须相互建立互联网连接，以便他们可以协商支付渠道。
 
-Let's assume that Alice wants to construct a payment channel allowing her to connect to Bob's store directly. First, the two nodes (Alice's and Bob's) have to establish an internet connection to each other, so that they can negotiate a payment channel.
+==== 节点隐私和公钥
 
-==== Node Private and Public Keys
-
-((("node public key")))((("payment channel","node private/public keys")))Every node on the Lightning Network is identified by a _node public key_. The public key uniquely identifies the specific node and is usually presented as a hexadecimal encoding. For example, René Pickhardt currently runs a Lightning Node (+ln.rene-pickhardt.de+) that is identified by the following node public key:
+((("node public key")))((("payment channel","node private/public keys"))) 闪电网络上的每个节点都由一个 _node public key_ 标识。 公钥唯一标识特定节点，通常以十六进制编码表示。 例如，René Pickhardt 当前运行一个闪电节点 (+ln.rene-pickhardt.de+)，该节点由以下节点公钥标识：
 
 ----
 02a1cebfacb2674143b5ad0df3c22c609e935f7bc0ebe801f37b8e9023d45ea7b8
 ----
 
-((("private keys","generation of")))((("root private key generation")))Each node generates a root private key when first initialized. The private key is kept private at all times (never shared) and securely stored in the node's wallet. From that private key, the node derives a public key that is the node identifier and shared with the network. Since the key space is enormous, as long as each node generates the private key randomly, it will have a unique public key, which can therefore uniquely identify it on the network.
+((("private keys","generation of")))((("root private key generation"))) 每个节点在第一次初始化时都会生成一个根私钥。 私钥始终保持私密（从不共享）并安全地存储在节点的钱包中。 从该私钥，节点派生一个公钥，该公钥是节点标识符并与网络共享。 由于密钥空间巨大，只要每个节点随机生成私钥，就会拥有唯一的公钥，从而可以在网络上唯一标识自己。
 
-==== Node Network Address
+==== 节点网络地址
 
-((("payment channel","node network address")))Additionally, every node also advertises a network address where it can be reached, in one of several possible formats:
+((("payment channel","node network address"))) 此外，每个节点还以以下几种可能的格式之一通告可以到达的网络地址：
 
 TCP/IP:: An IPv4 or IPv6 address and TCP port number
 
+TCP/IP:: IPv4或IPv6地址及TCP端口
+
 TCP/Tor:: A Tor "onion" address and TCP port number
 
-The network address identifier is written as +Address:Port+, which is consistent with international standards for network identifiers, as used, for example, on the web.
+TCP/Tor:: 洋葱地址和TCP端口
 
-For example, René's node with node public key +02a1ceb...45ea7b8+ currently advertises its network address as the TCP/IP address:
+网络地址标识符格式为 +Address:Port+，这与网络标识符的国际标准一致，例如在 web 上使用的。
+
+例如，René 的节点公钥 +02a1ceb...45ea7b8+ 当前将其网络地址为(TCP/IP地址)：
 
 ----
 172.16.235.20:9735
@@ -92,80 +99,87 @@ For example, René's node with node public key +02a1ceb...45ea7b8+ currently adv
 
 [TIP]
 ====
-The default TCP port for the Lightning Network is 9735, but a node can choose to listen on any TCP port.
+闪电网络的默认 TCP 端口是 9735，但节点可以选择侦听任何 TCP 端口。
 ====
 
-==== Node Identifiers
+==== 节点标识
 
-((("node identifiers")))((("payment channel","node identifiers")))Together, the node public key and network address are written in the following format, separated by an +@+ sign, as __++NodeID@Address:Port++__.
+((("node identifiers")))((("payment channel","node identifiers")))节点公钥和网络地址一起写成以下格式，用 +@+ 号分隔，如 __++NodeID@Address:Port++__。
 
-So the full identifier for René's node would be:
+因此 René 节点的完整标识符将是：
 
 ----
-02a1cebfacb2674143b5ad0df3c22c609e935f7bc0ebe801f37b8e9023d45ea7b8
-@172.16.235.20:9735
+02a1cebfacb2674143b5ad0df3c22c609e935f7bc0ebe801f37b8e9023d45ea7b8@172.16.235.20:9735
 ----
 
 [TIP]
 ====
-The alias of René's node is +ln.rene-pickhardt.de+; however, this name exists just for better readability. Every node operator can announce whatever alias they want, and there is no mechanism that prevents node operators from selecting an alias that is already being used. Thus to refer to a node, one must use the __++NodeID@Address:Port++__ schema.
+René节点的别名是+ln.rene-pickhardt.de+； 然而，这个名字的存在只是为了更好的可读性。 每个节点操作员都可以宣布他们想要的任何别名，但是没有任何机制保证节点操作员选择的别名是唯一的。 因此，要引用一个节点，必须使用 __++NodeID@Address:Port++__ 模式。
 ====
 
-The preceding identifier is often encoded in a QR code, making it easier for users to scan if they want to connect their own node to the specific node identified by that address.
+上面的标识符通常编码在二维码中，如果用户想要将自己的节点连接到由该地址标识的特定节点，直接扫描即可。
 
-Much like Bitcoin nodes, Lightning nodes advertise their presence on the Lightning Network by "gossiping" their node public key and network address. That way, other nodes can find them and keep an inventory (database) of all the known nodes that they can connect to and exchange the messages that are defined in the Lightning P2P message protocol.
 
-==== Connecting Nodes as Direct Peers
+就像比特币节点一样，闪电节点通过“八卦”他们的节点公钥和网络地址，以此来宣传他们在闪电网络上的存在。 这样，其他节点可以看到它们的存在并将节点保留在已知列表清单（数据库）中。然后，它们可以连接并交换P2P协议中定义的消息。
 
-((("payment channel","connecting nodes as direct peers")))In order for Alice's node to connect to Bob's node, she will need Bob's node public key, or the full address containing the public key, IP or Tor address, and port. Because Bob runs a store, Bob's node address can be retrieved from an invoice or a store payment page on the web. Alice can scan a QR code that contains the address and instruct her node to connect to Bob's node.
+==== 直连节点
 
-Once Alice has connected to Bob's node, their nodes are now directly connected peers.
+
+为了让 Alice 的节点连接到 Bob 的节点，她需要 Bob 的节点公钥，或者包含公钥、IP 或 Tor 地址和端口的完整地址。 因为 Bob 经营一家商店，所以 Bob 的节点地址可以从发票或 Web 上的商店付款页面中检索到。 Alice 可以扫描包含地址的 QR 码并指示她的节点连接到 Bob 的节点。
+
+一旦 Alice 连接到 Bob 的节点，他们的节点现在是直接连接的对等点。
 
 [TIP]
 ====
-To open a payment channel, two nodes must first be connected as direct peers by opening a connection over the internet (or Tor).(((range="endofrange", startref="ix_07_payment_channels-asciidoc3")))
+要开一个支付通道，必须首先通过 Internet（或 Tor）打开连接，将两个节点作为直接对等点连接。
 ====
 
-=== Constructing the Channel
+=== 构建一个通道
 
-((("Lightning Peer Protocol for Channel Management", id="ix_07_payment_channels-asciidoc4", range="startofrange")))((("payment channel","construction of", id="ix_07_payment_channels-asciidoc5", range="startofrange")))Now that Alice's and Bob's Lightning nodes are connected, they can begin the process of constructing a payment channel. In this section we will review the communications between their nodes, known as the _Lightning Peer Protocol for Channel Management_, and the cryptographic protocol that they use to build Bitcoin transactions.
+
+((("Lightning Peer Protocol for Channel Management", id="ix_07_payment_channels-asciidoc4", range="startofrange")))((("payment channel","construction of", id="ix_07_payment_channels-asciidoc5", range="startofrange")))现在 Alice 和 Bob 的闪电节点已经连接，他们可以开始构建支付通道的过程。 在本节中，我们将回顾它们节点之间的通信，称为 _用于通道管理的闪电对等协议_ ，以及它们用于构建比特币交易的加密协议。
+
 
 [TIP]
 ====
-We describe two different protocols in this scenario. First, there is a _message protocol_, which establishes how the Lightning nodes communicate over the internet and what messages they exchange with each other. Second, there is the _cryptographic protocol_, which establishes how the two nodes construct and sign Bitcoin pass:[<span class="keep-together">transactions</span>].
+我们描述了两种不同的协议。 首先，有一个_消息协议_，它确定了闪电节点如何通过互联网进行通信以及它们相互交换什么消息。 其次，有_加密协议_，它确定了两个节点如何构建和签署比特币交易。
 ====
 
 [[peer_protocol_channel_management]]
-==== Peer Protocol for Channel Management
+==== 通道管理的对等协议
 
-The Lightning Peer Protocol for Channel Management is defined in https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md[BOLT #2: Peer Protocol for Channel Management]. In this chapter we will be reviewing the "Channel Establishment" and "Channel Closing" sections of BOLT #2 in more detail.
+用于通道管理的闪电对等协议在 https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md[BOLT #2：通道管理的对等协议]中定义。 在本章中，我们将更详细地回顾 BOLT #2 的“通道建立”和“通道关闭”部分。
 
-==== Channel Establishment Message Flow
+==== 通道建立流程
 
-((("channel establishment message flow", id="ix_07_payment_channels-asciidoc6", range="startofrange")))((("payment channel","channel establishment message flow", id="ix_07_payment_channels-asciidoc7", range="startofrange")))Channel establishment is achieved by the exchange of six messages between Alice and Bob's nodes (three from each peer): +open_channel+, +accept_channel+, +funding_created+, +funding_signed+, +funding_locked+, and +funding_locked+. The six messages are shown as a time-sequence diagram in <<funding_message_flow>>. 
+
+((("channel establishment message flow", id="ix_07_payment_channels-asciidoc6", range="startofrange")))((("payment channel","channel establishment message flow", id="ix_07_payment_channels-asciidoc7", range="startofrange")))通道建立是通过 Alice 和 Bob 的节点（每个对等方三个）之间交换六个消息来实现的：+open_channel+、+accept_channel+、+funding_created+、+funding_signed+、+funding_locked+和+funding_locked+。 这六条消息在 <<funding_message_flow>> 中显示为时序图。
 
 [[funding_message_flow]]
 .The channel establishment message flow
 image::images/mtln_0703.png["The channel establishment message flow"]
 
-In <<funding_message_flow>>, Alice and Bob's nodes are represented by the vertical lines "A" and "B" on either side of the diagram. A time-sequence diagram like this shows time flowing downward, and messages flowing from one side to the other between the two communication peers. The lines are sloped down to represent the elapsed time needed to transmit each message, and the direction of the message is shown by an arrow at the end of each line.
+在 <<funding_message_flow>> 中，Alice 和 Bob 的节点由图两侧的垂直线“A”和“B”表示。像这样的时序图显示了时间向下流动，消息在两个通信对等点之间从一侧流向另一侧。这些线向下倾斜以表示传输每条消息所需的经过时间，并且消息的方向由每条线末端的箭头表示。
 
-The channel establishment involves three parts. First, the two peers communicate their capabilities and expectations, with Alice initiating a request through +open_channel+ and Bob accepting the channel request through +accept_channel+.
 
-Second, Alice constructs the funding and refund transactions (as we will see later in this section) and sends +funding_created+ to Bob. Another name for the "refund" transaction is a "commitment" transaction, as it commits to the current distribution of balances in the channel. Bob responds by sending back the necessary signatures with +funding_signed+. This interaction is the basis for the _cryptographic protocol_ to secure the channel and prevent theft. Alice will now broadcast the funding transaction (on-chain) to establish and anchor the payment channel. The transaction will need to be confirmed on the Bitcoin blockchain.
+渠道建设涉及三个部分。首先，两个对等方交流他们的节点能力和期望，Alice 通过+open_channel+ 发起请求，Bob 通过+accept_channel+ 接受通道请求。
+
+其次，Alice 构建质押和退款交易（我们将在本节后面看到）并将 +funding_created+ 发送给 Bob。 “退款”交易的另一个名称是“承诺”交易，因为它承诺当前通道中的余额分配。 Bob 通过使用 +funding_signed+ 发回必要的签名作为回应。这种交互是 以_加密协议_ 保护通道和防止盗窃作为基础的。 Alice 现在将广播质押交易（链上）以建立和锚定支付渠道。交易需要在比特币区块链上确认。
 
 [TIP]
 ====
-The name of the +funding_signed+ message can be a bit confusing. This message does not contain a signature for the funding transaction, but rather it contains Bob's signature for the refund transaction that allows Alice to claim her bitcoin back from the multisig.
++funding_signed+ 消息的名称可能有点混乱。 此消息不包含质押交易的签名，而是包含 Bob 的退款交易签名，允许 Alice 从多重签名中收回她的比特币。
 ====
 
-Once the transaction has sufficient confirmations (as defined by the `minimum_depth` field in the `accept_channel` message), Alice and Bob exchange +funding_locked+ messages, and the channel enters normal operating mode.
+一旦交易有足够的确认（由 `accept_channel` 消息中的 `minimum_depth` 字段定义），Alice 和 Bob 交换 +funding_locked+ 消息，并且通道进入正常操作模式。
 
-===== The open_channel message
+===== open_channel 消息
 
-((("channel establishment message flow","open_channel message")))((("open_channel message")))Alice's node requests a payment channel with Bob's node by sending an +open_channel+ message. The message contains information about Alice's _expectations_ for the channel setup, which Bob may accept or decline.
 
-The structure of the +open_channel+ message (taken from BOLT #2) is shown in <<open_channel_message>>.
+((("channel establishment message flow","open_channel message")))((("open_channel message"))) Alice 的节点通过发送 +open_channel+ 消息向 Bob 的节点请求建立支付通道。 该消息包含有关 Alice 对频道设置的 _expectations_ 的信息，Bob 可以接受或拒绝。
+
+
++open_channel+ 消息的结构（取自 BOLT #2）在 <<open_channel_message>> 中显示。
 
 [[open_channel_message]]
 .The `open_channel` message
@@ -193,33 +207,41 @@ The structure of the +open_channel+ message (taken from BOLT #2) is shown in <<o
 ----
 ====
 
-The fields contained in this message specify the channel parameters that Alice wants, as well as various configuration settings from Alice's nodes that reflect the security expectations for the operation of the channel.
+此消息中包含的字段指定 Alice 想要的通道参数，以及Alice 节点自身的各种配置设置，这些设置反映了通道操作的安全期望。
 
 [role="pagebreak-before"]
-Some of the channel construction parameters are listed here:
+此处列出了一些通道构造参数：
 
-+chain_hash+:: This identifies which blockchain (e.g., Bitcoin mainnet) will be used for this channel. It is usually the hash of the genesis block of that blockchain.
 
-+funding_satoshis+:: The amount Alice will use to fund the channel, which is the total channel capacity.
++chain_hash+:: 这确定了该通道将使用哪个区块链（例如，比特币主网）。 它通常是该区块链创世块的哈希值。
 
-+channel_reserve_satoshis+:: The minimum balance, in satoshis, that is reserved on each side of a channel. We will come back to this when we talk about penalties.
 
-+push_msat+:: An optional amount that Alice will immediately "push" to Bob as a payment upon channel funding. _Setting this value to anything but 0 means effectively gifting money to your channel partner and should be used with caution._
++funding_satoshis+:: Alice 将用于通道质押的金额，即总通道容量。
 
-+to_self_delay+:: A very important security parameter for the protocol. The value in the `open_channel` message is used in the responder's commitment transaction, and the `accept_channel` in the initiator's. This asymmetry exists to allow each side to express how long the other side needs to wait to unilaterally claim the funds in a commitment transaction. If Bob at any time unilaterally closes the channel against the will of Alice, he commits to not accessing his own funds for the delay defined here. The higher this value, the more security Alice has, but the longer Bob might have his funds locked.
 
-+funding_pubkey+:: The public key that Alice will contribute to the 2-of-2 multisig that anchors this channel.
++channel_reserve_satoshis+:: 在通道的每一侧保留的最小余额，以 satoshis 为单位。 当我们谈论处罚时，我们会继续讨论这一点。
 
-+X_basepoint+:: Master keys, used to derive child keys for various parts of the commitment, revocation, routed payment (HTLCs), and closing transactions. These will be used and explained in subsequent chapters.
++push_msat+:: 这是一个可选项，表示Alice将立即推送给Bob的用于通道支付的质押量
+
+
++to_self_delay+:: 协议中的一个非常重要的安全参数。 在`open_channel` 消息中，用于响应者的承诺交易；在 `accept_channel`消息中，用于发起者的交易。 这种不对称性的存在是为了让每一方都可以表达另一方需要等待多长时间才能在承诺交易中单方面取走资金。 如果 Bob 在任何时候违背 Alice 的意愿单方面关闭通道，他承诺在此处定义的延迟内不使用自己的资金。 该值越高，Alice 的安全性越高，但 Bob 的资金锁定时间也会越长。
+
+
++funding_pubkey+:: Alice 将用于锚定此通道的 2-of-2 多重签名的公钥。
+
+
++X_basepoint+::  主密钥，用于为承诺、撤销、路由支付 (HTLC) 和关闭交易的各个部分派生子密钥。 这些将在后续章节中使用和解释。
+
 
 [TIP]
 ====
-If you want to understand the other fields and Lightning peer protocol messages that we do not discuss in this book, we suggest you look them up in the BOLT specifications. These messages and fields are important, but cannot be covered in enough detail in the scope of this book. We want you to understand the fundamental principles well enough that you can fill in the details by reading the actual protocol specification (BOLTs).
+如果您想了解本书未讨论的其他字段和闪电网络对等协议消息，我们建议您在 BOLT 规范中查找它们。 这些消息和字段很重要，但在本书的范围内无法详细介绍。 我们希望您充分了解基本原理，以便您可以通过阅读实际协议规范 (BOLT) 来掌握更多的详细信息。
 ====
 
-===== The accept_channel message
+===== accept_channel消息类型
 
-((("accept_channel message")))((("channel establishment message flow","accept_channel message")))In response to Alice's +open_channel+ message, Bob sends back the +accept_channel+ message shown in <<accept_channel_message>>.
+
+((("accept_channel message")))((("channel establishment message flow","accept_channel message"))) 作为对 Alice 的 +open_channel+ 消息的响应，Bob 发回 <<accept_channel_message>> 中所示的 +accept_channel+ 消息。
 
 [[accept_channel_message]]
 .The `accept_channel` message
@@ -243,109 +265,120 @@ If you want to understand the other fields and Lightning peer protocol messages 
 ----
 ====
 
-As you can see, this is similar to the +open_channel+ message and contains Bob's node expectations and configuration values.
 
-The two most important fields in +accept_channel+ that Alice will use to construct the payment channel are:
-
-+funding_pubkey+:: The public key Bob's node contributes for the 2-of-2 multisig address that anchors the channel.
-
-+minimum_depth+:: The number of confirmations that Bob's node expects for the funding transaction before it considers the channel "open" and ready to use.(((range="endofrange", startref="ix_07_payment_channels-asciidoc7")))(((range="endofrange", startref="ix_07_payment_channels-asciidoc6")))
-
-==== The Funding Transaction
-
-((("funding transaction")))((("payment channel","funding transaction")))Once Alice's node receives Bob's +accept_channel+ message, it has the information necessary to construct the _funding transaction_ that anchors the channel to the Bitcoin blockchain. As we discussed in earlier chapters, a Lightning payment channel is anchored by a 2-of-2 multisignature address. First, we need to generate that multisignature address to allow us to construct the funding transaction (and the refund transaction as described subsequently).
-
-==== Generating a Multisignature Address
-
-((("multisignature addresses")))((("payment channel","multisignature addresses")))The funding transaction sends some amount of bitcoin (+funding_satoshis+ from the +open_channel+ message) to a 2-of-2 multisignature output that is constructed from Alice and Bob's +funding_pubkey+ public keys.
-
-Alice's node constructs a multisignature script as shown here:
-
-++++
-<pre data-type="programlisting">2 &lt;<em>Alice_funding_pubkey</em>&gt; &lt;<em>Bob_funding_pubkey</em>&gt; 2 CHECKMULTISIG
-</pre>
-++++
-
-Note that, in practice, the funding keys are deterministically _sorted_ (using lexicographical order of the serialized compressed form of the public keys) before being placed in the witness script. By agreeing to this sorted order ahead of time, we ensure that both parties will construct an identical funding transaction output, which is signed by the exchanged commitment transaction signature.
+如您所见，这类似于 +open_channel+ 消息，包含 Bob 的节点期望和配置值。
 
 
-This script is encoded as a Pay-to-Witness-Script-Hash (P2WSH) Bitcoin address, which looks something like this:
+在accept_channel中，Alice 用于构建支付通道的两个最重要的字段是：
+
+
++funding_pubkey+:: Bob 的节点锚定到通道的 且用来构建 2-of-2 多重签名地址的公钥。
+
+
++minimum_depth+:: Bob 的节点在认为通道“打开”并准备好使用之前，预期的质押交易确认次数。(((range="endofrange", startref="ix_07_payment_channels-asciidoc7")))(((range="endofrange", startref="ix_07_payment_channels-asciidoc6")))
+
+==== 质押交易
+((("funding transaction")))((("payment channel","funding transaction"))) 一旦 Alice 的节点收到 Bob 的 +accept_channel+ 消息，它就有足够的信息来构建将通道锚定到比特币区块链的 _funding transaction_。 正如我们在前面章节中所讨论的，闪电支付通道由 2-of-2 多重签名地址锚定。 首先，我们需要生成多重签名地址以允许我们构建质押交易（以及随后描述的退款交易）。
+
+==== 生成一个多签地址
+((("multisignature addresses")))((("payment channel","multisignature addresses")))质押交易将一定数量的比特币（来自 +open_channel+ 消息的 +funding_satoshis+）发送到由 Alice 和 Bob 的 +funding_pubkey+ 公钥构成的 2-of-2 多重签名输出。
+
+
+Alice 的节点构造一个多重签名脚本，如下所示：
+
+[[A_B_multisig]]
+.A 2-of-2 multisig script with Alice and Bob's funding_pubkey values
+----
+2 <_`Alice_funding_pubkey`_> <_`Bob_funding_pubkey`_> 2 CHECKMULTISIG
+----
+
+请注意，在实践中，资金密钥在放入见证脚本之前会被确定性地_排序_（使用公钥的序列化压缩形式的字典顺序）。通过提前确认这个排序顺序，我们确保双方将构建一个相同的资金交易输出，由交换的承诺交易签名签署。
+
+
+该脚本被编码为 Pay-to-Witness-Script-Hash (P2WSH) 比特币地址，如下所示：
 
 ----
 bc1q89ju02heg32yrqdrnqghe6132wek25p6sv6e564znvrvez7tq5zqt4dn02
 ----
-==== Constructing the Funding Transaction
+==== 构建质押交易
 
-((("payment channel","constructing the funding transaction")))Alice's node can now construct a funding transaction, sending the amount agreed on with Bob (`funding_satoshis`) to the 2-of-2 multisig address. Let's assume that funding_satoshis was 140,000 and Alice is spending a 200,000 satoshi output and creating 60,000 satoshi change. The transaction will look something like <<A_B_funding_Tx>>. 
+((("payment channel","constructing the funding transaction")))Alice 的节点现在可以构建质押交易，将与 Bob 商定的金额（`funding_satoshis`）发送到一个2-of-2 多重签名地址。 假设funding_satoshis 为140,000，Alice 花费了200,000 satoshi 输出并创造了60,000 satoshi 零钱。 该交易将类似于图 7-4。
 
 [[A_B_funding_Tx]]
 .Alice constructs the funding transaction
 image::images/mtln_0704.png["Alice constructs the funding transaction"]
 
-Alice _does not broadcast_ this transaction because doing so would put her 140,000 satoshi at risk. Once spent to the 2-of-2 multisig, there is no way for Alice to recover her money without Bob's signature.
+爱丽丝 _不广播_ 这笔交易，因为这样做会使她的 140,000 聪处于危险之中。 一旦构建了 2-of-2 多重签名交易，如果没有 Bob 的签名，Alice 就无法收回她的钱了。
 
 [role="pagebreak-before less_space"]
 .Dual-Funded Payment Channels
+
+
+.双向质押支付通道
 ****
-((("dual-funded payment channels")))((("payment channel","dual-funded")))In the current implementation of Lightning, channels are funded only by the node initiating the channel (Alice in our example). Dual-funded channels have been proposed, but not yet implemented. In a dual-funded channel, both Alice and Bob would contribute inputs to the funding transaction. Dual-funded channels require a slightly more complicated message flow and cryptographic protocol, so they have not been implemented yet but are planned for a future update to the Lightning BOLTs. The `c-lightning` implementation includes an experimental version of a variant on dual-funded channels.
+((("dual-funded payment channels")))((("payment channel","dual-funded"))) 在闪电网络的当前实现中，通道仅由启动通道的节点（在我们的示例中为Alice）提供资金。 双资质押支付通道已经提出了，但尚未实施。在双向质押支付通道中，Alice 和 Bob 都会为质押交易贡献输入。 双资质押通道需要稍微复杂的消息流和加密协议，因此它们尚未实施，但计划在未来的闪电网络中实现。 `c-lightning` 实现包括双资渠道变体的实验版本。
 ****
 
-==== Holding Signed Transactions Without Broadcasting
+==== 在不广播的情况下持有签名交易
 
-((("payment channel","holding signed transactions without broadcasting")))An important Bitcoin feature that makes Lightning possible is the ability to construct and sign transactions, but not broadcast them. The transaction is _valid_ in every way, but until it is broadcast and confirmed on the Bitcoin blockchain it is not recognized and its outputs are not spendable because they have not been created on the blockchain. We will use this capability many times in the Lightning Network, and Alice's node uses the capability when constructing the funding transaction: holding it and not broadcasting it yet.
+((("payment channel","holding signed transactions without broadcasting"))) 使闪电网络成为可能的一个重要比特币功能是能够构建和签署交易，却不能广播它们。 交易在各个方面都是 _有效_ 的，但直到它在比特币区块链上被广播和确认之前，它是无法被识别的，并且它的输出是不可花费的，因为它们不是在区块链上创建的。 我们将在闪电网络中多次使用该能力，Alice 的节点在构建资金交易时使用该能力：持有它而不是广播它。
 
-==== Refund Before Funding
+==== 质押前撤销
 
-((("payment channel","refund before funding")))To prevent loss of funds, Alice cannot put her bitcoin into a 2-of-2 until she has a way to get a refund if things go wrong. Essentially, she must plan the "exit" from the channel before she enters into this arrangement.
+((("payment channel","refund before funding")))为了防止资金损失，Alice 不能将她的比特币放入 2-of-2 中，除非她有办法在出现问题时获得退款。本质上，她必须在进入质押流程前，做好从通道“退出”的计划。
 
-Consider the legal construct of a prenuptial agreement, also known as a "prenup." When two people enter into a marriage their money is bound together by law (depending on jurisdiction). Prior to entering into the marriage, they can sign an agreement that specifies how to separate their assets if they dissolve their marriage through divorce.
 
-We can create a similar agreement in Bitcoin. For example, we can create a refund transaction, which functions like a prenup, allowing the parties decide how the funds in their channel will be divided before their funds are actually locked into the multisignature funding address.
+参考一下婚前协议的法律结构，也称为“婚前协议”。当两个人结婚时，他们的钱受法律约束（取决于司法管辖区）。在结婚之前，他们可以签署一份协议，规定如果他们通过离婚解除婚姻，如何分割他们的资产。
 
-==== Constructing the Presigned Refund Transaction
+我们可以在比特币中创建类似的协议。 例如，我们可以创建一个退款交易，其功能类似于 婚前协议，允许各方在他们的资金实际锁定到多重签名资金地址之前，决定如何分配他们渠道中的资金。
 
-((("payment channel","constructing the presigned refund transaction")))((("refund transactions")))Alice will construct the refund transaction immediately after constructing (but not broadcasting) the funding transaction. The refund transaction spends the 2-of-2 pass:[<span class="keep-together">multisig</span>] back to Alice's wallet. ((("commitment transactions","refund transactions and")))We call this refund transaction a _commitment transaction_ because it commits both channel partners to distributing the channel balance fairly. Since Alice funded the channel on her own, she gets the entire balance, and both Alice and Bob commit to refunding Alice  with this transaction.
+==== 构建预签名退款交易
 
-In practice, it is a bit more complicated as we will see in subsequent chapters, but for now let's keep things simple and assume it looks like <<A_B_fund_refund_Tx>>. 
+((("payment channel","constructing the presigned refund transaction")))((("refund transactions")))Alice 将在构建（但不广播）质押交易后立即构建退款交易。 退款交易将 2-of-2 多重签名转回 Alice 的钱包。 ((("commitment transactions","refund transactions and")))我们称这个退款交易为 _commitment transaction_ ，因为它承诺通道合作伙伴公平分配通道余额。 由于 Alice 自己质押了该通道，因此她获得了全部余额，并且 Alice 和 Bob 都承诺通过这笔交易退还 Alice 的余额。
+
+
+在实践中，我们将在后续章节中看到它实现的复杂性，但现在让我们保持简单，假设它看起来像图 7-5。
 
 [[A_B_fund_refund_Tx]]
 .Alice also constructs the refund transaction
 image::images/mtln_0705.png["Alice also constructs the refund transaction"]
 
-Later in this chapter we will see how more commitment transactions can be made to distribute the balance of the channel in different amounts.
+在本章的后面，我们将看到如何进行更多的承诺交易来分配不同数量的通道余额。
 
-==== Chaining Transactions Without Broadcasting
+==== 在不广播的情况下链接交易
 
-((("payment channel","chaining transactions without broadcasting")))So now, Alice has constructed the two transactions shown in <<A_B_fund_refund_Tx>>. But you might be wondering how this is possible.  Alice hasn't broadcast the funding transaction to the Bitcoin blockchain. As far as everyone on the network is concerned, that transaction doesn't exist. The refund transaction is constructed so as to _spend_ one of the outputs of the funding transaction, even though that output doesn't exist yet either. How can you spend an output that hasn't been confirmed on the Bitcoin blockchain?
+((("payment channel","chaining transactions without broadcasting"))) 所以现在，Alice 已经构建了 <<A_B_fund_refund_Tx>> 中显示的两个交易。 但你可能想知道这怎么可能？ Alice 没有将质押交易广播到比特币区块链。 就网络上的每个人而言，该交易并不存在。 退款交易的构造是为了 _花费_ 质押交易的输出之一，即使该输出也不存在。 您如何在比特币区块链上花费尚未确认的输出？
 
-The refund transaction is not yet a valid transaction. For it to become a valid transaction two things must happen:
+退款交易尚未成为有效交易。 要使其成为有效交易，必须发生两件事：
 
-* The funding transaction must be broadcast to the Bitcoin network. (To ensure the security of the Lightning Network, we will also require it to be confirmed by the Bitcoin blockchain, though this is not strictly necessary to chain pass:[<span class="keep-together">transactions</span>].)
-* The refund transaction's input needs Alice's and Bob's signatures. 
+* 质押交易必须被广播到比特币网络。 （为了保证闪电网络的安全，我们也将要求它通过比特币区块链进行确认，尽管这对于链式交易并不是绝对必要的）
+* 退款交易的输入需要 Alice 和 Bob 的签名。
 
 [role="pagebreak-before"]
-But even though these two things haven't happened, and even though Alice's node hasn't broadcast the funding transaction, she can still construct the refund transaction. She can do so because she can calculate the funding transaction's hash and reference it as an input in the refund transaction.
+但是即使这两件事都没有发生，即使 Alice 的节点没有广播质押交易，她仍然可以构造退款交易。她可以这样做，因为她可以计算质押交易的哈希并将其作为退款交易的输入。
 
-Notice how Alice has calculated +6da3c2...387710+ as the funding transaction hash? If and when the funding transaction is broadcast, that hash will be recorded as the transaction ID of the funding transaction. Therefore, the `0` output of the funding transaction (the 2-of-2 address output) will then be referenced as output ID +6da3c2...387710:0+. The refund transaction can be constructed to spend that funding transaction output even though it doesn't exist yet, because Alice knows what its identifier will be once confirmed.
+请注意 Alice 是如何计算出 +6da3c2...387710+ 作为资金交易哈希的？ 如果并且当质押交易被广播时，该哈希将被记录为资金交易的交易 ID。因此，质押交易的“0”输出（2-of-2 地址输出）将被引用为输出 ID +6da3c2...387710:0+。可以构造退款交易来花费该资金交易输出，即使它还不存在，但Alice 知道它的标识符是什么。
 
-This means that Alice can create a chained transaction by referencing an output that doesn't yet exist, knowing that the reference will be valid if the funding transaction is confirmed, making the refund transaction valid too. As we will see in the next section, this "trick" of chaining transactions before they are broadcast requires a very important feature of Bitcoin that was introduced in August of 2017: _Segregated Witness_.
+这意味着 Alice 可以通过引用尚不存在的输出来创建链式交易，知道如果资金交易得到确认，该引用将有效，从而使退款交易也有效。正如我们将在下一节中看到的，这种在广播之前链接交易的“技巧”需要 2017 年 8 月引入的比特币的一个非常重要的特性：_隔离见证_。
 
-==== Solving Malleability (Segregated Witness)
+==== 解决延展性（隔离见证）
 
-((("payment channel","Transaction Malleability and Segregated Witness", id="ix_07_payment_channels-asciidoc8", range="startofrange")))((("Segregated Witness (SegWit) protocol", id="ix_07_payment_channels-asciidoc9", range="startofrange")))((("Transaction Malleability", id="ix_07_payment_channels-asciidoc10", range="startofrange")))Alice has to depend on the transaction ID of the funding transaction being known before confirmation. But before the introduction of  Segregated Witness (SegWit) in August 2017, this was not sufficient to protect Alice. Because of the way transactions were constructed with the signatures (witnesses) included in the transaction ID, it was possible for a third party (e.g., Bob) to broadcast an alternative version of a transaction with a _malleated_ (modified) transaction ID. This is known as _transaction malleability_, and prior to SegWit, this problem made it difficult to implement indefinite lifetime payment channels securely.
 
-If Bob could modify Alice's funding transaction before it was confirmed, and produce a replica that had a different transaction ID, Bob could make Alice's refund transaction invalid and hijack her bitcoin. Alice would be at Bob's mercy to get a signature to release her funds and could easily be blackmailed. Bob couldn't steal the funds, but he could prevent Alice from getting them back.
+((("payment channel","Transaction Malleability and Segregated Witness", id="ix_07_payment_channels-asciidoc8", range="startofrange")))((("Segregated Witness (SegWit) protocol", id="ix_07_payment_channels-asciidoc9", range="startofrange")))((("Transaction Malleability", id="ix_07_payment_channels-asciidoc10", range="startofrange")))Alice 必须依赖在确认之前已知的质押交易的ID。 但在 2017 年 8 月引入隔离见证（SegWit）之前，这还不足以保护 Alice。 由于使用交易 ID 中包含的签名（见证人）构建交易的方式，第三方（例如 Bob）可以广播具有 _malleated_（修改后的）交易 ID 的交易的替代版本。 这被称为_交易延展性_，在 SegWit 之前，这个问题使得难以安全地实施无限期支付渠道。
 
-The introduction of SegWit made unconfirmed transaction IDs immutable from the point of view of third parties, meaning that Alice could be sure that the transaction ID of the funding transaction would not change. As a result, Alice can be confident that if she gets Bob's signature on the refund transaction, she has a way to recover her money. She now has a way to implement the Bitcoin equivalent of a "prenup" before locking her funds into the multisig.
+
+如果 Bob 可以在 Alice 的质押交易被确认之前修改它，并生成一个具有不同交易 ID 的副本，那么 Bob 可以使 Alice 的退款交易无效并劫持她的比特币。 Alice将任由Bob摆布，在获得签名以取回她的资金的过程中，Alice很容易被勒索。Bob无法窃取资金，但他可以阻止 Alice 取回这些资金。
+
+
+SegWit 的引入使得未经确认的交易 ID 从第三方的角度来看是不可变的，这意味着 Alice 可以确定质押交易的 ID 不会改变。 因此，Alice 可以确信，如果她在退款交易中得到 Bob 的签名，她就有办法收回她的钱。 她现在有办法在将资金锁定到多重签名之前，实施相当于“婚前协议”的比特币交易。
 
 [TIP]
 ====
-You might have wondered how Bob would be able to alter (malleate) a transaction created and signed by Alice. Bob certainly does not have Alice's private keys. However ECDSA signatures for a message are not unique. Knowing a signature (which is included in a valid transaction) allows one to produce many different-looking signatures that are still valid. Before SegWit removed signatures from the transaction digest algorithm, Bob could replace the signature with an equivalent valid signature that produced a different transaction ID, breaking the chain between the funding transaction and the refund transaction.
+您可能想知道 Bob 如何能够更改（malleate）由 Alice 创建和签名的交易。 Bob 肯定没有 Alice 的私钥。 但是，消息的 ECDSA 签名不是唯一的。 知道了签名（包含在有效交易中），允许人们生成许多看起来不同但仍然有效的签名。 在 SegWit 从交易摘要算法中删除签名之前，Bob 可以将签名替换为产生不同交易 ID 的等效有效签名，从而破坏资金交易和退款交易之间的链条。
 ====
 
-===== The funding_created message
-
-((("funding_created message")))((("Segregated Witness (SegWit) protocol","funding_created message and")))Now that Alice has constructed the necessary transactions, the channel construction message flow continues. Alice transmits the +funding_created+ message to Bob. You can see the contents of this message here:
+===== funding_created 消息
+((("funding_created message")))((("Segregated Witness (SegWit) protocol","funding_created message and")))现在 Alice 已经构建了必要的交易，通道构建消息流继续进行。 Alice 将 +funding_created+ 消息发送给 Bob。 您可以在此处查看此消息的内容：
 
 [[funding_created_message]]
 .The funding_created message
@@ -356,33 +389,35 @@ You might have wondered how Bob would be able to alter (malleate) a transaction 
 [signature:signature]
 ----
 
-With this message, Alice gives Bob the important information about the funding transaction that anchors the payment channel:
+通过这条消息，Alice 向 Bob 提供了有关锚定支付通道的质押交易的重要信息：
 
-+funding_txid+:: This is the transaction ID (TxID) of the funding transaction, and is used to create the channel ID once the channel is established.
 
-+funding_output_index+:: This is the output index, so Bob knows which output of the transaction (e.g., output `0`) is the 2-of-2 multisig output funded by Alice. This is also used to form the channel ID.
++funding_txid+:: 这是质押交易的交易 ID (TxID)，用于在通道建立后创建通道 ID。
 
-Finally, Alice also sends the +signature+ corresponding to Alice's `funding_pubkey` and used to spend from the 2-of-2 multisig. This is needed by Bob because he will also need to create his own version of a commitment transaction. That commitment transaction needs a signature from Alice, which she provides to him. Note that the commitment transactions of Alice and Bob look slightly different, thus the signatures will be different. Knowing what the commitment transaction of the other party looks like is crucial and part of the protocol to provide the valid signature.
++funding_output_index+:: 这是输出索引，因此 Bob 知道交易的哪个输出（例如输出“0”）是 Alice 质押的 2-of-2 多重签名输出。 这也用于形成通道 ID。
+
+
+最后，Alice 还发送了与 Alice 的 `funding_pubkey` 对应的 +signature+，用于从 2-of-2 multisig 中花费。 Bob 需要这样做，因为他还需要创建自己的承诺交易版本。 该承诺交易需要 Alice 的签名，她提供给他。 请注意，Alice 和 Bob 的承诺交易看起来略有不同，因此签名会有所不同。 了解对方的承诺交易是什么样子是至关重要的，也是提供有效签名的协议的一部分。
 
 [TIP]
 ====
-In the Lightning protocol we often see nodes sending signatures instead of entire signed transactions. That's because either side can reconstruct the same transaction and therefore only the signature is needed to make it valid. Sending only the signature and not the entire transaction saves a lot of network bandwidth.
+在闪电协议中，我们经常看到节点发送签名而不是整个签名交易。 这是因为任何一方都可以重建相同的交易，因此只需签名即可使其有效。 只发送签名而不发送整个交易可以节省大量的网络带宽。
 ====
 
+===== funding_signed 消息
 
-===== The funding_signed message
-
-((("funding_signed message")))((("Segregated Witness (SegWit) protocol","funding_signed message and")))After receiving the +funding_created+ message from Alice, Bob now  knows the funding transaction ID and output index. The channel ID is made by a bitwise "exclusive or" (XOR) of the funding transaction ID and output index:
+((("funding_signed message")))((("Segregated Witness (SegWit) protocol","funding_signed message and")))在收到 Alice 的 +funding_created+ 消息后，Bob 现在知道了资金交易 ID 和输出索引。 通道 ID 由资金交易 ID 和输出索引的按位“异或”（XOR）组成：
 
 ----
 channel_id = funding_txid XOR funding_output_index
 ----
 
-More precisely, a `channel_id`, which is the 32-byte representation of a funding UTXO, is generated by XORing the lower 2 bytes of the funding TxID with the index of the funding output.
+更准确地说，“channel_id”是资金 UTXO 的 32 字节表示，它是通过将资金 TxID 的低 2 个字节与资金输出的索引进行异或来生成的。
 
-Bob will also need to send Alice his signature for the refund transaction, based on Bob's `funding_pubkey` that formed the 2-of-2 multisig. Although Bob already has his local refund transaction, this will allow Alice to complete the refund transaction with all necessary signatures and be sure her money is refundable in case something goes wrong.
 
-Bob constructs a +funding_signed+ message and sends it to Alice. Here we see the contents of this message:(((range="endofrange", startref="ix_07_payment_channels-asciidoc10")))(((range="endofrange", startref="ix_07_payment_channels-asciidoc9")))(((range="endofrange", startref="ix_07_payment_channels-asciidoc8")))
+Bob 还需要根据 Bob 的 `funding_pubkey` 向 Alice 发送他的退款交易签名，该 `funding_pubkey` 形成了 2-of-2 多重签名。 尽管 Bob 已经有他的本地退款交易，但这将允许 Alice 使用所有必要的签名完成退款交易，并确保她的钱可以在出现问题时退还。
+
+Bob 构造了一个 +funding_signed+ 消息并将其发送给 Alice。 这里我们看到这条消息的内容
 
 [[funding_signed_message]]
 .The funding_signed message
@@ -393,142 +428,167 @@ Bob constructs a +funding_signed+ message and sends it to Alice. Here we see the
 
 ----
 
-==== Broadcasting the Funding Transaction
+==== 广播质押交易
 
-((("payment channel","broadcasting the funding transaction")))Upon receiving the +funding_signed+ message from Bob, Alice now has both signatures needed to sign the refund transaction. Her "exit plan" is now secure, and therefore she can broadcast the funding transaction without fear of having her funds locked. If anything goes wrong, Alice can simply broadcast the refund transaction and get her money back, without any further help from Bob.
 
-Alice now sends the funding transaction to the Bitcoin network so that it can be mined into the blockchain. Both Alice and Bob will be watching for this transaction and waiting for +minimum_depth+ confirmations (e.g., six confirmations) on the Bitcoin blockchain.
+((("payment channel","broadcasting the funding transaction")))在收到来自 Bob 的 +funding_signed+ 消息后，Alice 现在拥有签署退款交易所需的两个签名。 她的“退出计划”现在是安全的，因此她可以广播质押交易而不必担心她的资金被锁定。 如果出现任何问题，Alice 可以简单地广播退款交易并取回她的钱，而无需 Bob 的任何进一步帮助。
+
+
+Alice 现在将质押交易发送到比特币网络，以便可以通过矿工挖矿被包含到区块链中。 Alice 和 Bob 都将关注此交易并等待比特币区块链上的 +minimum_depth+ 确认（例如，六个确认）。
+
 
 [TIP]
 ====
-Of course Alice will use the Bitcoin Protocol to verify that the signature that Bob sent her is indeed valid. This step is very crucial. If for some reason Bob was sending wrongful data to Alice, her "exit plan" would be sabotaged.
+当然 Alice 会使用比特币协议来验证 Bob 发送给她的签名确实有效。 这一步非常关键。 如果出于某种原因 Bob 向 Alice 发送了错误的数据，她的“退出计划”就会被破坏。
 ====
 
-===== The funding_locked message
+===== funding_locked 消息
+((("funding_locked message")))一旦资金交易达到所需的确认次数，Alice 和 Bob 就会互相发送 +funding_locked+ 消息，通道马上投入使用。
 
-((("funding_locked message")))As soon as the funding transaction has reached the required number of confirmations, both Alice and Bob send the +funding_locked+ message to each other and the channel is ready for use.(((range="endofrange", startref="ix_07_payment_channels-asciidoc5")))(((range="endofrange", startref="ix_07_payment_channels-asciidoc4")))
+=== 基于通道发送支付
+((("payment channel","sending payments across", id="ix_07_payment_channels-asciidoc11", range="startofrange")))通道已经建立，但在初始状态下，所有容量（140,000 satoshis）都在 Alice 这边。 这意味着 Alice 可以通过通道向 Bob 发送付款，但 Bob 还没有资金可以发送给 Alice。
 
-=== Sending Payments Across the Channel
 
-((("payment channel","sending payments across", id="ix_07_payment_channels-asciidoc11", range="startofrange")))The channel has been set up, but in its initial state, all the capacity (140,000 satoshis) is on Alice's side. This means that Alice can send payments to Bob across the channel, but Bob has no funds to send to Alice yet.
+在接下来的几节中，我们将展示如何通过支付渠道进行支付以及如何更新 _channel state_ 。
 
-In the next few sections we will show how payments are made across the payment channel and how the _channel state_ is updated.
 
-Let's assume that Alice wants to send 70,000 satoshis to Bob to pay her bill at Bob's coffee shop.
+假设 Alice 想向 Bob 发送 70,000 satoshis 以在 Bob 的咖啡店支付账单。
 
-==== Splitting the Balance
+==== 拆分余额
+((("payment channel","splitting the payment balance")))原则上，从 Alice 向 Bob 发送付款只是重新分配通道余额的问题。 在发送付款之前，Alice 有 140,000 satoshis 而 Bob 没有。 在发送 70,000 satoshi 付款后，Alice 有 70,000 satoshis，Bob 有 70,000 satoshis。
 
-((("payment channel","splitting the payment balance")))In principle, sending a payment from Alice to Bob is simply a matter of redistributing the balance of the channel. Before the payment is sent, Alice has 140,000 satoshis and Bob has none. After the 70,000 satoshi payment is sent, Alice has 70,000 satoshis pass:[<span class="keep-together">and Bob</span>] has 70,000 satoshis.
 
-((("commitment transactions","splitting balances with")))Therefore, all Alice and Bob have to do is create and sign a transaction that spends the 2-of-2 multisig to two outputs paying Alice and Bob their corresponding balances. We call this updated transaction a _commitment transaction_.
+((("commitment transactions","splitting balances with")))因此，Alice 和 Bob 所要做的就是创建并签署一个交易，将 2-of-2 多重签名用于两个输出，向 Alice 和 Bob 支付相应的余额。 我们称这个更新的事务为 _commitment transaction_ 。
 
-Alice and Bob operate the payment channel by _advancing the channel state_ through a series of commitments. Each commitment updates the balances to reflect payments that have flowed across the channel. Both Alice and Bob can initiate a new commitment to update the channel.
 
-In <<competing_commitments_1>> we see several commitment transactions. 
+Alice 和 Bob 通过一系列承诺 _推进通道状态_ 来操作支付通道。每个承诺都会更新余额以反映流经渠道的付款。 Alice 和 Bob 都可以发起更新通道的新承诺。
 
-The first commitment transaction shown in <<competing_commitments_1>> is the refund transaction that Alice constructed before funding the channel. In the diagram, this is Commitment #0. After Alice pays Bob 70,000 satoshis, the new commitment transaction (Commitment #1) has two outputs paying Alice and Bob their respective balances. We have included two subsequent commitment transactions (Commitment #2 and Commitment #3) which represent Alice paying Bob an additional 10,000 satoshis and then 20,000 satoshis, respectively.
 
-Each signed and valid commitment transaction can be used by either channel partner at any time to close the channel by broadcasting it to the Bitcoin network. Since they both have the most recent commitment transaction and can use it at any time, they can also just hold it and not broadcast it. It's their guarantee of a fair exit from the channel.
+在 <<competing——commitments_1>>中，我们看到许多的承诺交易。
+
+<<competing_commitments_1>> 中显示的第一个承诺交易是 Alice 在为通道提供资金之前构建的退款交易。 在图中，这是承诺 #0。 在 Alice 支付 Bob 70,000 satoshis 之后，新的承诺交易（承诺 #1）有两个输出支付，分别代表 Alice 和 Bob 各自的余额。 我们包含了两个后续的承诺交易（承诺 #2 和承诺 #3），分别代表 Alice 向 Bob 支付了额外的 10,000 satoshis 和 20,000 satoshis。
+
+每个通道合作伙伴都可以随时使用每个已签名且有效的承诺交易，通过将其广播到比特币网络来关闭通道。 由于他们都有最近的承诺交易并且可以随时使用它，所以他们也可以只持有它而不广播它。 这是他们公平退出通道的保证。
 
 [[competing_commitments_1]]
 .Multiple commitment transactions
 image::images/mtln_0706.png[Multiple commitment transactions]
 
-==== Competing Commitments
 
-((("commitment transactions","completing commitments")))((("payment channel","completing commitments")))You may be wondering how it is possible for Alice and Bob to have multiple commitment transactions, all of them attempting to spend the same 2-of-2 output from the funding transaction. Aren't these commitment transactions conflicting? ((("double-spending")))Isn't this a "double-spend" that the Bitcoin system is meant to prevent?
+==== 竞争性承诺
 
-It is indeed! In fact, we rely on Bitcoin's ability to _prevent_ a double-spend to make Lightning work. No matter how many commitment transactions Alice and Bob construct and sign, only one of them can actually get confirmed.
+((("commitment transactions","completing commitments")))((("payment channel","completing commitments")))你可能在想，Alice和Bob如何可能有多个承诺交易，而且所有这些交易都试图花费资金交易中相同2-of-2输出。这些承诺交易难道不会相互冲突吗？难道这不是比特币系统旨在防止的“双重支付”吗？
 
-As long as Alice and Bob hold these transactions and don't broadcast them, the funding output is unspent. But if a commitment transaction is broadcast and confirmed, it will spend the funding output. If Alice or Bob attempts to broadcast more than one commitment transaction, only one of them will be confirmed and the others will be rejected as attempted (and failed) double-spends.
 
-If more than one commitment transaction is broadcast, there are many factors that will determine which one gets confirmed first: the amount of fees included, the speed of propagation of these competing transactions, network topology, etc. Essentially it becomes a race without a predictable outcome. That doesn't sound very secure. It sounds like someone could cheat.
+确实是这样！实际上，我们依赖于比特币防止双重支付的能力来使闪电网络正常运作。不管Alice和Bob构建和签署多少个承诺交易，只有其中一个能够被确认。
 
-==== Cheating with Old Commitment Transactions
 
-((("cheating","with old transactions")))((("commitment transactions","cheating with old transactions")))((("payment channel","cheating with old commitment transactions")))Let's look more carefully at the commitment transactions in <<competing_commitments_1>>. All four commitment transactions are signed and valid. But only the last one accurately reflects the most recent channel balances. In this particular scenario, Alice has an opportunity to cheat by broadcasting an older commitment and getting it confirmed on the Bitcoin blockchain. Let's say Alice transmits Commitment #0 and gets it confirmed: she will effectively close the channel and take all 140,000 satoshis herself. In fact, in this particular example any commitment but Commitment #3 improves Alice's position and allows her to "cancel" at least part of the payments reflected in the channel.
+只要Alice和Bob持有这些交易并且不广播它们，资金输出就没有被花费。但是，如果一个承诺交易被广播和确认，它将花费资金输出。如果Alice或Bob试图广播多个承诺交易，只有其中一个将被确认，而其他的将被作为尝试双重支付而受拒绝。
 
-In the next section we will see how the Lightning Network resolves this problem—preventing older commitment transactions from being used by the channel partners by a mechanism of revocation and penalties. There are other ways to prevent the transmission of older commitment transactions, such as eltoo channels, but they require an upgrade to Bitcoin called input rebinding (see <<bitcoin_prot_17>>).
 
-==== Revoking Old Commitment Transactions
+如果广播了多个承诺交易，有许多因素将决定哪一个首先被确认：包含的费用金额，这些竞争交易的传播速度，网络拓扑等等。本质上，这成为了一个没有可预测结果的竞赛。这听起来并不是很安全，似乎有人可以作弊。
 
-((("commitment transactions","revoking old transactions")))((("payment channel","revoking old commitment transactions")))Bitcoin transactions do not expire and cannot be "canceled." Neither can they be stopped or censored once they have been broadcast. So how do we "revoke" a transaction that another person holds that has already been signed?
 
-The solution used in Lightning is another example of a fairness protocol. ((("penalty mechanisms")))Instead of trying to control the ability to broadcast a transaction, there is a built-in _penalty mechanism_ that ensures it is not in the best interest of a would-be cheater to transmit an old commitment transaction. They can always broadcast it, but they will most likely lose money if they do so.
+==== 利用旧的承诺交易进行欺诈
+
+((("cheating","with old transactions")))((("commitment transactions","cheating with old transactions")))((("payment channel","cheating with old commitment transactions")))让我们仔细看看<<competing_commitments_1>>中的承诺交易。所有四个承诺交易都是签名并且有效的。但是，只有最后一个准确地反映了最近的通道余额。在这种特殊情况下，Alice有机会通过广播旧的承诺交易来作弊，并将其确认在比特币区块上。假设Alice传输Commitment＃0并获得确认：她将有效地关闭通道并独自取走所有的140,000个聪。事实上，在这个特定的例子中，任何承诺交易，而不是Commitment＃3都会改善Alice的位置，并允许她“取消”在通道中体现的至少部分付款。
+
+
+在下一节中，我们将看到闪电网络如何解决这个问题-通过吊销和处罚机制来防止通道合作方使用旧的承诺交易。还有其他方法来防止传输旧的承诺交易，例如使用闪电通道，但这需要对比特币进行升级，称为输入重绑定 ( 参见 <<bitcoin_prot_17>> )。
+
+==== 撤销旧的承诺交易
+
+
+((("commitment transactions","revoking old transactions")))((("payment channel","revoking old commitment transactions")))比特币交易没有到期日期，也不能被“取消”。一旦交易被广播，它们也不能被停止或审查。那么我们如何“吊销”已经被签名并且由其他人持有的交易呢？
+
+
+闪电网络使用的解决方案是公平协议的又一个例子。与其试图控制广播交易的能力，这里有一个内置的惩罚机制，确保传输旧的承诺交易不符合作弊者的最佳利益。他们可以随时广播旧交易，但如果这样做，他们很有可能会损失自己的财产。
+
 
 [TIP]
 ====
-The word "revoke" is a misnomer because it implies that older commitments are somehow made invalid and cannot be broadcast and confirmed. But this is not the case, since valid Bitcoin transactions cannot be revoked. Instead, the Lightning protocol uses a penalty mechanism to punish the channel partner who broadcasts an old commitment.
+“撤销”这个词是有误导性的，因为它暗示旧的承诺会被无效化，不能被广播和确认。但是实际上，有效的比特币交易是无法被吊销的。相反，闪电协议使用惩罚机制来惩罚传输旧的承诺交易的通道合作方。
 ====
 
-There are three elements that make up the Lightning protocol's revocation and penalty mechanism:
 
-Asymmetric commitment transactions:: Alice's commitment transactions are slightly different from those held by Bob.
-
-Delayed spending:: The payment to the party holding the commitment transaction is delayed (timelocked), whereas the payment to the other party can be claimed immediately.
-
-Revocation keys:: Used to unlock a penalty option for old commitments.
-
-Let's look at these three elements in turn.
+闪电协议的吊销和惩罚机制分为三个部分：
 
 
-==== Asymmetric Commitment Transactions
+不对称的承诺交易:: Alice的承诺交易与Bob持有的略有不同。
 
-((("commitment transactions","asymmetric")))((("payment channel","asymmetric commitment transactions")))Alice and Bob hold slightly different commitment transactions. Let's look specifically at Commitment #2 from <<competing_commitments_1>>, in more detail in <<commitment_2>>. 
+
+延迟的支出:: 支付给持有承诺交易的一方是被延迟的（时间锁定），而支付给另一方的可以立即获得。
+
+
+吊销密钥:: 用于解锁对旧的承诺交易使用惩罚选项的钥匙。
+
+
+让我们逐个来看看这三部分。
+
+==== 不对称的承诺交易
+
+((("commitment transactions","asymmetric")))((("payment channel","asymmetric commitment transactions")))Alice和Bob持有略有不同的承诺交易。让我们具体看看 Figure7-7 中 <<competing_commitments_1>> 中的 Commitment＃2。
 
 [[commitment_2]]
 .Commitment transaction #2
 image::images/mtln_0707.png[Commitment transaction #2]
 
-Alice and Bob hold two different variations of this transaction, as illustrated in <<asymmetric_1>>.
+Alice and Bob hold two different variations of this transaction, as shown in <<asymmetric_1>>.
+如<<asymmetric_1>>所示，Alice和Bob持有此交易的两种不同变体。
 
 [[asymmetric_1]]
 .Asymmetric commitment transactions
 image::images/mtln_0708.png[Asymmetric commitment transactions]
 
-By convention, within the Lightning protocol, we refer to the two channel partners as `self` (also known as `local`) and `remote`, depending on which side we're looking at. The outputs that pay each channel partner are called `to_local` and `to_remote`, respectively.
+在闪电协议内，根据我们正在查看哪一侧，我们习惯于将两个通道合作方称为“self”（也称为“local”）和“remote”。分别称为“to_local”和“to_remote”的输出支付给每个通道合作方。
 
-In <<asymmetric_1>> we see that Alice holds a transaction that pays 60,000 satoshis `to_self` (can be spent by Alice's keys), and 80,000 satoshis `to_remote` (can be spent by Bob's keys).
+在<<asymmetric_1>>中，我们看到Alice拥有一个支付60,000 satoshis给“self”（可以由Alice的密钥支出）和80,000 satoshis给“remote”（可以由Bob的密钥支出）的交易。
 
-Bob holds the mirror image of that transaction, where the first output is 80,000 satoshis `to_self` (can be spent by Bob's keys), and 60,000 satoshis `to_remote` (can be spent by Alice's keys).
+Bob持有的是镜像交易，也就是第一个输出是80,000 satoshis支付给“self”（可以由Bob的密钥支出），第二个输出是60,000 satoshis支付给“remote”（可以由Alice的密钥支出）。
 
-==== Delayed (Timelocked) Spending to_self
+==== 延迟花费至to_self
 
-((("payment channel","delayed spending to_self")))Using asymmetric transactions allows the protocol to easily ascribe _blame_ to the cheating party. An invariant that the _broadcasting_ party must always wait ensures that the "honest" party has time to refute the claim and revoke their funds. This asymmetry is manifested in the form of differing outputs for each side: the `to_local` output is always timelocked and can't be spent immediately, whereas the `to_remote` output is not timelocked and can be spent immediately.
+((("payment channel","delayed spending to_self")))使用不对称交易使得协议可以轻松地发现欺诈者。通过广播方必须等待来确保“诚实”的一方有时间辩驳欺诈交易并撤销他们的资金，这是一致性的。这种不对称性体现在每一侧有不同的输出。其中，“to_local”输出始终被时间锁定并且不能立即花费，“to_remote”输出没有被时间锁定并且可以立即支出。
 
-In the commitment transaction held by Alice, for example, the `to_local` output that pays her is timelocked for 432 blocks, whereas the `to_remote` output that pays Bob can be spent immediately (see <<asymmetric_delayed_1>>). Bob's commitment transaction for Commitment #2 is the mirror image: his own (`to_local`) output is timelocked and Alice's `to_remote` output can be spent immediately.
+
+例如，在Alice持有的承诺交易中，“to_local”输出被时间锁定了432个区块，而支付给Bob的“to_remote”输出可以立即花费（参见 Figure7-9）。Bob的Commitment＃2的承诺交易是一个镜像图：他自己的“to_local”输出被时间锁定，而Alice的“to_remote”输出可以立即支出。
 
 [[asymmetric_delayed_1]]
 .Asymmetric and delayed commitment transactions
 image::images/mtln_0709.png[Asymmetric and delayed commitment transactions]
 
 [role="pagebreak-before"]
-That means that if Alice closes the channel by broadcasting and confirming the commitment transaction she holds, she cannot spend her balance for 432 blocks, but Bob can claim his balance immediately. If Bob closes the channel using the commitment transaction he holds, he cannot spend his output for 432 blocks while Alice can immediately spend hers.
+这意味着如果Alice通过广播并确认她持有的承诺交易来关闭通道，她不能在432个区块高度内花费她的余额，但Bob可以立即使用他的余额。 如果Bob使用他持有的承诺交易关闭通道，则他在432个块内不能花费他的输出。
 
-The delay is there for one reason: to allow the _remote_ party to exercise a penalty option if an old (revoked) commitment should be broadcast by the other channel partner. Let's look at the revocation keys and penalty option next.
 
-The delay is negotiated by Alice and Bob, during the initial channel construction message flow, as a field called +to_self_delay+. To ensure the security of the channel, the delay is scaled to the capacity of the channel—meaning a channel with more funds has longer delays in the +to_self+ outputs in commitments. Alice's node includes a desired +to_self_delay+ in the +open_channel+ message. If Bob finds this acceptable, his node includes the same value for +to_self_delay+ in the +accept_channel+ message. If they do not agree, then the channel is rejected (see <<theShutdownmessage>>).
+延迟是出于一个原因：即使一方广播了旧的（已撤销的）承诺，也允许远程方行使罚款选项。接下来让我们看看吊销密钥和罚款选项。
 
-==== Revocation Keys
 
-((("payment channel","revocation keys")))((("revocation keys")))As we discussed previously, the word "revocation" is a bit misleading because it implies that the "revoked" transaction cannot be used.
+延迟时长是由Alice和Bob在初始通道构建消息流期间协商的，在一个名为 +to_self_delay+ 的字段中。为了确保通道的安全性，延迟时长通常和通道的容量相关 - 这意味着拥有更多资金的通道在 +to_self+ 承诺输出中，需要的延迟更长。Alice的节点在 +open_channel+ 消息中包括所需的 +to_self_delay+ 。如果Bob认为这可以接受，他的节点会在 +accept_channel+ 消息中包含相同的 +to_self_delay+ 值。如果他们不同意，那么通道就会被拒绝（参见<<theShutdownmessage>>）。
 
-In fact, the revoked transaction can be used, but if it is used, and it has been revoked, then one of the channel partners can take all of the channel funds by creating a penalty transaction.
+==== 撤销密钥
 
-The way this works is that the `to_local` output is not only timelocked, but it also has two spending conditions in the script: it can be spent by _self_ after the timelock delay _or_ it can be spent by _remote_ immediately with a revocation key for this commitment.
+((("payment channel","revocation keys")))((("revocation keys")))正如我们之前所讨论的，“撤销”这个词有点误导，因为它暗示“撤销”的交易不能使用。
 
-So, in our example, each side holds a commitment transaction that includes a revocation option in the `to_local` output, as shown in <<asymmetric_delayed_revocable_1>>.(((range="endofrange", startref="ix_07_payment_channels-asciidoc11"))) 
+
+事实上，被撤销的交易是可以使用的，但如果被使用，并且已经被撤销，那么其中一个通道合作伙伴可以通过创建惩罚交易来拿走所有的通道资金。
+
+
+其工作方式是 `to_local` 输出不仅是带时间锁的，而且在脚本中还有另外两个花费条件：它可以在时间锁定延迟后由 _self_ 花费 _或者_ 它可以由 _通道合作伙伴_ 立即使用撤销密钥花费。
+
+
+
+因此，在我们的示例中，每一方都持有一个承诺交易，该交易在 `to_local` 输出中包含一个撤销选项，如
 
 [[asymmetric_delayed_revocable_1]]
 .Asymmetric, delayed, and revocable commitments
 image::images/mtln_0710.png["Asymmetric, delayed and revocable commitments"]
 
 [[commitment_transaction]]
-=== The Commitment Transaction
+=== 承诺交易
+((("commitment transactions", id="ix_07_payment_channels-asciidoc12", range="startofrange")))((("payment channel","commitment transaction", id="ix_07_payment_channels-asciidoc13", range="startofrange")))现在我们了解了承诺交易的结构以及为什么我们需要不对称、延迟、可撤销的承诺，让我们看看实现它的比特币脚本。
 
-((("commitment transactions", id="ix_07_payment_channels-asciidoc12", range="startofrange")))((("payment channel","commitment transaction", id="ix_07_payment_channels-asciidoc13", range="startofrange")))Now that we understand the structure of commitment transactions and why we need asymmetric, delayed, revocable commitments, let's look at the Bitcoin Script that implements this.
-
-The first (`to_local`) output of a commitment transaction is defined in https://github.com/lightningnetwork/lightning-rfc/blob/master/03-transactions.md#to_local-output[BOLT #3: Commitment Transaction, `to_local` Output], as follows:
+承诺交易的第一个（`to_local`）输出在 https://github.com/lightningnetwork/lightning-rfc/blob/master/03-transactions.md#to_local-output[BOLT #3：承诺交易， `to_local` 输出] 中定义，描述如下： 
 
 ----
 OP_IF
@@ -543,14 +603,17 @@ OP_ENDIF
 OP_CHECKSIG
 ----
 
-This is a conditional script (see <<conditional_scripts>>), which means the output can be spent if _either_ of the two conditions is met. The first clause allows the output to be spent by anyone who can sign for +<revocationpubkey>+. The second clause is timelocked by +<to_self_delay>+ blocks and can only be spent after that many blocks by anyone who can sign for +<local_delayedpubkey>+. In our example, we had set the +<to_self_delay>+ timelock to 432 blocks, but this is a configurable delay that is negotiated by the two channel partners. The +to_self_delay+ timelock duration is usually chosen in proportion to the channel capacity, meaning that larger capacity channels (more funds), have longer +to_self_delay+ timelocks to protect the parties.
+这是一个条件脚本（参见<<conditional_scripts>>），这意味着如果满足两个条件中的任何一个，则可以使用输出。第一个子句允许任何可以签署 +<revocationpubkey>+ 的人使用输出。第二个子句由 +<to_self_delay>+ 块时间锁定，并且只能在可以签署 +<local_delayedpubkey>+ 的任何人之后花费那么多块。在我们的示例中，我们将 +<to_self_delay>+ 时间锁设置为 432 个块，但这是由两个通道合作伙伴协商的可配置延迟。 +to_self_delay+ 时间锁持续时间通常与通道容量成比例选择，这意味着容量越大的通道（资金越多），就有更长的 +to_self_delay+ 时间锁来保护各方。
 
-The first clause allows the output to be spent by anyone who can sign for +<revocationpubkey>+. A critical requirement to the security of this script is that the remote party _cannot_ unilaterally sign with the `revocationpubkey`. To see why this is important, consider the scenario in which the remote party breaches a previously revoked commitment. If they can sign with this key, then they can simply take the revocation clause _themselves_ and steal all the funds in the channel. Instead, we derive the `revocationpubkey` for _each_ state based on information from _both_ the self (local) and remote party. A clever use of symmetric and asymmetric cryptography is used to allow both sides to compute the `revocationpubkey` public key, but only allow the honest self party to compute the private key given their secret information, as detailed in <<revocation_sidebar>>.
+
+第一个子句允许任何可以签署 +<revocationpubkey>+ 的人使用输出。该脚本的安全性的一个关键要求是通道合作方 _不能_ 单方面使用“revocationpubkey”签名。要了解为什么这很重要，请考虑通道合作方违反先前撤销的承诺的情况。如果他们可以使用此密钥进行签名，那么他们可以简单地使用撤销条款并窃取通道中的所有资金。相反，我们根据来自自身（本地）和远程方的信息为每一方的 状态导出“revocationpubkey”。对称和非对称密码学的巧妙使用允许双方计算 `revocationpubkey` 公钥，但只允许诚实的自己方根据他们的秘密信息计算私钥，详见 <<revocation_sidebar>>。
 
 [[revocation_sidebar]]
 .Revocation and Commitment Secret Derivations
 ****
 ((("payment channel","revocation and commitment secret derivations")))Each side sends a `revocation_basepoint` during the initial channel negotiation messages as well as a `first_per_commitment_point`. The `revocation_basepoint` is static for the lifetime of the channel, while each new channel state will be based off a new `first_per_commitment_point`.
+
+
 
 Given this information, the `revocationpubkey` for each channel state is derived via the following series of elliptic curve and hashing operations: 
 
@@ -576,7 +639,7 @@ In other words, the `revocationbase_priv` can only be derived (and used to sign 
 
 [TIP]
 ====
-((("relative timelock")))The timelock used in the commitment transaction with +CHECK&#x200b;SE&#x2060;QUENCEVERIFY+ is a _relative timelock_. It counts elapsed blocks from the confirmation of this output. That means it will not be spendable until the +to_self_delay+ block _after_ this commitment transaction is broadcast and confirmed.
+((("relative timelock")))The timelock used in the commitment transaction with +CHECKSEQUENCEVERIFY+ is a _relative timelock_. It counts elapsed blocks from the confirmation of this output. That means it will not be spendable until the +to_self_delay+ block _after_ this commitment transaction is broadcast and confirmed.
 ====
 
 The second output (to_remote) output of the commitment transaction is defined in https://github.com/lightningnetwork/lightning-rfc/blob/master/03-transactions.md#to_remote-output[BOLT #3: Commitment Transaction,  `to_remote` Output], and in the simplest form is a Pay-to-Witness-Public-Key-Hash (P2WPKH) for +<remote_pubkey>+, meaning that it simply pays the owner who can sign for +<remote_pubkey>+.
@@ -584,18 +647,26 @@ The second output (to_remote) output of the commitment transaction is defined in
 Now that we've defined the commitment transactions in detail, let's see how Alice and Bob advance the state of the channel, create and sign new commitment transactions, and revoke old commitment transactions.(((range="endofrange", startref="ix_07_payment_channels-asciidoc13")))(((range="endofrange", startref="ix_07_payment_channels-asciidoc12")))
 
 === Advancing the Channel State
+=== 更新通道状态
 
 ((("channel state","advancing", id="ix_07_payment_channels-asciidoc14", range="startofrange")))((("payment channel","advancing the channel state", id="ix_07_payment_channels-asciidoc15", range="startofrange")))To advance the state of the channel, Alice and Bob exchange two messages: +commitment_signed+ and +revoke_and_ack+ messages. The +commitment_signed+ message can be sent by either channel partner when they have an update to the channel state. The other channel partner then may respond with +revoke_and_ack+ to _revoke_ the old commitment and _acknowledge_ the new commitment.
 
+((("channel state","advancing", id="ix_07_payment_channels-asciidoc14", range="startofrange")))((("payment channel","advancing the channel state", id="ix_07_payment_channels-asciidoc15", range="startofrange")))为了推进通道的状态，Alice和Bob交换两个消息：+commitment_signed+ 和 +revoke_and_ack+。当其中一方有更新通道状态的消息时，可以发送 +commitment_signed+ 消息。然后，另一方可以通过发送 +revoke_and_ack+ 消息来撤销旧的承诺并确认新的承诺。
+
 In <<commitment_message_flow>> we see Alice and Bob exchanging two pairs of +commitment_signed+ and +revoke_and_ack+. The first flow shows a state update initiated by Alice (left to right +commitment_signed+), to which Bob responds (right to left +revoke_and_ack+). The second flow shows a state update initiated by Bob and responded to by Alice.
+
+在<<commitment_message_flow>>中，我们可以看到Alice和Bob交换了两对 +commitment_signed+ 和 +revoke_and_ack+ 。第一个流程展示了由Alice发起的状态更新（从左到右的 +commitment_signed+ ），Bob用从右向左的 +revoke_and_ack+ 作出响应。第二个流程展示了Bob发起的状态更新并由Alice响应的情况。
 
 [[commitment_message_flow]]
 .Commitment and revocation message flow
 image::images/mtln_0711.png[Commitment and revocation message flow]
 
 ==== The commitment_signed Message
+==== commitment_signed消息
 
 ((("channel state","commitment_signed message")))((("commitment_signed message")))The structure of the +commitment_signed+ message is defined in https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md#committing-updates-so-far-commitment_signed[BOLT #2: Peer Protocol, `commitment_signed`], and shown here:
+
+((("channel state","commitment_signed message")))((("commitment_signed message"))) +commitment_signed+ 消息在 https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md#committing-updates-so-far-commitment_signed[BOLT #2: Peer Protocol, `commitment_signed`] 中定义，描述如下：
 
 [[commitment_signed_message]]
 .The commitment_signed message
@@ -616,14 +687,26 @@ image::images/mtln_0711.png[Commitment and revocation message flow]
 The use of HTLCs to commit updates will be explained in detail in <<htlcs>> and in <<channel_operation>>. 
 ====
 
+[NOTE]
+====
+如何使用HTLC来进行通道更新的详细说明将在《HTLCs》和《通道操作》中阐述.
+====
+
 Alice's +commitment_signed+ message gives Bob the signature needed (Alice's part of the 2-of-2) for a new commitment transaction.
+Alice的“承诺签名”消息为Bob提供了新承诺交易所需的签名（作为 2 个 2 的一部分的Alice部分签名）。
+
 
 ==== The revoke_and_ack Message
+==== revoke_and_ack消息
 
 ((("channel state","revoke_and_ack message")))((("revoke_and_ack message")))Now that Bob has a new commitment transaction, he can revoke the previous commitment by giving Alice a revocation key, and construct the new commitment with Alice's signature.
 
+((("channel state","revoke_and_ack message")))((("revoke_and_ack message")))
+现在Bob有了一个新的承诺交易，他可以通过给Alice一个撤销密钥来撤销之前的承诺，并使用Alice的签名构建新的承诺。
+
 The +revoke_and_ack+ message is defined in https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md#completing-the-transition-to-the-updated-state-revoke_and_ack[BOLT #2: Peer Protocol, `revoke_and_ack`], and shown here:
 
++revoke_and_ack+ 消息在 https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md#completing-the-transition-to-the-updated-state-revoke_and_ack[BOLT #2: Peer Protocol, `revoke_and_ack`] 中定义，描述如下：
 [[revoke_and_ack_message]]
 .The revoke_and_ack message
 ----
@@ -638,33 +721,61 @@ The +revoke_and_ack+ message is defined in https://github.com/lightningnetwork/l
 +per_commitment_secret+:: Used to generate a revocation key for the previous (old) commitment, effectively revoking it.
 +next_per_commitment_point+:: Used to build a `revocation_pubkey` for the new commitment, so that it can later be revoked.
 
++channel_id+:: 这是通道的标识符。
+
++per_commitment_secret+:: 用于生成旧承诺的撤销密钥，有效地撤销旧承诺。
+
++next_per_commitment_point+:: 用于构建新承诺的“撤销公钥”，以便随后撤销新承诺。
+
 [[revocation]]
 ==== Revoking and Recommitting
+==== 撤销和重复提交
 
 ((("channel state","revoking and recommitting")))Let's look at this interaction between Alice and Bob more closely.
 
+((("channel state","revoking and recommitting")))让我们更仔细地看看Alice和Bob之间的这个交互。
+
 Alice is giving Bob the means to create a new commitment. In return, Bob is revoking the old commitment to assure Alice that he won't use it. Alice can only trust the new commitment if she has the revocation key to punish Bob for publishing the old commitment. From Bob's perspective, he can safely revoke the old commitment by giving Alice the keys to penalize him, because he has a signature for a new commitment.
+
+Alice正在提供给鲍勃创建一个新承诺的手段。作为回报，Bob正在撤销旧承诺以向爱丽丝保证自己不会使用它。只有当Alice拥有撤销密钥时，她才能信任新的承诺并用惩罚的方式处置Bob发布旧承诺。从Bob的角度来看，他可以安全地撤销旧承诺，因为他已经对新承诺进行了签名并将密钥交给了Alice。
 
 When Bob responds with +revoke_and_ack+, he gives Alice a +per_commitment_secret+. This secret can be used to construct the revocation signing key for the old commitment, which allows Alice to seize all channel funds by exercising a penalty.
 
+当Bob回复 +revoke_and_ack+ 时，他会向Alice提供 +per_commitment_secret+ ，这个秘钥可以用来构建旧承诺的撤销签名密钥，使得Alice可以通过处罚来占用所有通道资金。
+
 As soon as Bob has given this secret to Alice, he _must not_ ever broadcast that old commitment. If he does, he will give Alice the opportunity to penalize him by taking the funds. Essentially, Bob is giving Alice the ability to hold him accountable for broadcasting an old commitment, and in effect he has revoked his ability to use that old commitment.
+
+一旦Bob将这个密钥交给Alice，他就绝不能再广播那个旧的承诺了。 如果他这样做，他将为Alice提供利用资金惩罚他的机会。实际上，Bob正在给爱丽丝能够追究他广播旧承诺的责任，并且实际上他已经撤销了使用那个旧承诺的能力。
 
 Once Alice has received the +revoke_and_ack+ from Bob, she can be sure that Bob cannot broadcast the old commitment without being penalized. She now has the keys necessary to create a penalty transaction if Bob broadcasts an old commitment.
 
-[[revocation_secret_derivation]]
-==== Cheating and Penalty in Practice
+一旦Alice收到来自Bob的“撤销和确认”，她就可以确信Bob不能在没有被惩罚的情况下广播旧承诺。她现在拥有必要的密钥来创建惩罚交易，如果Bob广播旧承诺，这个密钥就会发挥作用。
 
-((("channel state","cheating and penalty in practice", id="ix_07_payment_channels-asciidoc16", range="startofrange")))((("cheating","monitoring for", id="ix_07_payment_channels-asciidoc17", range="startofrange")))In practice, both Alice and Bob have to monitor for cheating. They are monitoring the Bitcoin blockchain for any commitment transactions related to any of the channels they are operating. If they see a commitment transaction confirmed on-chain, they will check to see if it is the most recent commitment. If it is an "old" commitment, they must immediately construct and broadcast a penalty transaction. The penalty transaction spends _both_ the +to_local+ and +to_remote+ outputs, closing the channel and sending both balances to the cheated channel partner.
+
+[[revocation_secret_derivation]]
+==== 欺诈于惩罚实例
+
+((("channel state","cheating and penalty in practice", id="ix_07_payment_channels-asciidoc16", range="startofrange")))((("cheating","monitoring for", id="ix_07_payment_channels-asciidoc17", range="startofrange")))在实践中，Alice和Bob都必须监视欺骗行为。他们正在监视比特币区块链以确定与他们操作的任何通道相关的任何承诺交易。如果他们看到一个承诺交易在区块链上被确认，他们将检查以查看它是否是最新的承诺。如果它是一个“旧”的承诺，他们必须立即构建并广播一笔罚款交易。罚款交易花费了 +to_local+ 和 +to_remote+ 的输出，关闭通道并将双方的余额都发送给被欺骗的通道伙伴。
 
 To more easily allow both sides to keep track of the commitment numbers of the passed revoke commitments, each commitment actually _encodes_ the number of the commitment within the lock time and sequence fields in a transition. Within the ((("state hints")))protocol, this special encoding is referred to as _state hints_. Assuming a party knows the current commitment number, they're able to use the state hints to easily recognize if a broadcasted commitment was a revoked one, and if so, which commitment number was breached, as that number is used to easily look up which revocation secret should be used in the revocation secret tree (shachain).
 
+为了更方便地让双方跟踪已撤销承诺的承诺编号，每个承诺实际上都在锁定时间和顺序字段中编码了该承诺中的承诺编号。在((("statehints")))协议中，这种特殊编码称为_statehints_。假设一方知道当前的承诺编号，则可以使用状态提示轻松识别广播的承诺是否为已撤销的承诺，如果是，则可以轻松查找应在吊销密钥树（shachain）中使用哪个吊销密钥。
+
 ((("obfuscated state hints")))Rather than encode the state hint in plain sight, an _obfuscated_ state hint is used in its place. This obfuscation is achieved by first XORing the current commitment number with a set of random bytes generated deterministically using the funding public keys of both sides of the channel. A total of 6 bytes across the lock time and sequence (24 bits of the locktime and 24 bits of the sequence) are used to encode the state hint within the commitment transaction, so 6 random bytes are needed to use for XORing. To obtain these 6 bytes, both sides obtain the SHA-256 hash of the initiator's funding key concatenated to the responder's funding key. Before encoding the current commitment height, the integer is XORed with this state hint obfuscator, and then encoded in the lower 24 bits of the locktime, and the upper 64 bits of the sequence.
 
+((("obfuscated state hints")))与在明处编码状态提示不同，这里使用了一个被混淆的状态提示。这种混淆是通过首先将当前的承诺编号与使用通道双方的资金公钥确定生成的一组随机字节进行异或运算来实现的。在承诺交易中用于编码状态提示的是锁定时间和顺序中的6个字节（锁定时间的24位和顺序的24位），因此需要使用6个随机字节进行XOR运算。为了获得这6个字节，双方获取发起者的资金密钥连接到应答者的资金密钥的SHA-256哈希值。在编码当前的承诺高度之前，将整数与这个状态提示混淆器进行异或运算，然后编码到锁定时间的下24位和序列的上64位中。
+
 Let's review our channel between Alice and Bob and show a specific example of a penalty transaction. In <<competing_commitments_2>> we see the four commitments on Alice and Bob's channel. Alice has made three payments to Bob:
+
+让我们回顾一下Alice和Bob之间的通道，并展示一个具体的罚款交易的例子。在<<competing_commitments_2>>中，我们可以看到Alice和Bob的通道上的四个承诺。Alice向Bob进行了三次付款：
 
 * 70,000 satoshis paid and committed to Bob with Commitment #1
 * 10,000 satoshis paid and committed to Bob with Commitment #2
 * 20,000 satoshis paid and committed to Bob with Commitment #3
+
+* 70,000聪已经支付并在承诺＃1中提交给Bob
+* 10,000聪已经支付并在承诺＃2中提交给Bob
+* 20,000聪已经支付并在承诺＃3中提交给Bob
 
 [[competing_commitments_2]]
 .Revoked and current commitments
@@ -672,9 +783,15 @@ image::images/mtln_0712.png[Revoked and current commitments]
 
 With each commitment, Alice has revoked the previous (older) commitment. The current state of the channel and the correct balance is represented by Commitment #3. All previous commitments have been revoked, and Bob has the keys necessary to issue penalty transactions against them, in case Alice tries to broadcast one of them.
 
+对于每个承诺，Alice都吊销了先前（旧）的承诺。通道的当前状态和正确的余额由承诺＃3表示。所有先前的承诺都已被吊销，而且Bob拥有发出针对它们的罚款交易所需的密钥，以防Alice尝试广播其中任何一个。
+
 Alice might have an incentive to cheat because all the previous commitment transactions would give her a higher proportion of the channel balance than she is entitled to. Let's say for example that Alice tried to broadcast Commitment #1. That commitment transaction would pay Alice 70,000 satoshis and Bob 70,000 satoshis. If Alice was able to broadcast and spend her +to_local+ output, she would effectively be stealing 30,000 satoshis from Bob by rolling back her last two payments to Bob.
 
+Alice可能会有欺骗的动机，因为所有之前的承诺交易都会给予她比她应得的更高比例的通道余额。举个例子，假设Alice试图广播Commitment #1。那个承诺交易将支付Alice 70,000聪和Bob 70,000聪。如果Alice能够广播并花费她的 +to_local+ 输出，那么她实际上会从Bob那里窃取了30,000聪，并撤销了她向Bob的最后两笔支付。
+
 Alice decides to take a huge risk and broadcast the revoked Commitment #1, to steal 30,000 satoshis from Bob. In <<cheating_commitment>> we see Alice's old commitment that she broadcasts to the Bitcoin blockchain. 
+
+Alice决定冒巨大的风险，广播了已吊销的Commitment＃1，窃取Bob的30,000聪。在<<cheating_commitment>>中，我们可以看到Alice广播到比特币区块链上的旧的承诺。
 
 [[cheating_commitment]]
 .Alice cheating
@@ -682,36 +799,41 @@ image::images/mtln_0713.png[Alice cheating]
 
 As you can see, Alice's old commitment has two outputs, one paying herself 70,000 satoshis (+to_local+ output) and one paying Bob 70,000 satoshis. Alice can't yet spend her 70,000 +to_local+ output because it has a 432 block (3 day) timelock. She is now hoping that Bob doesn't notice for three days.
 
+正如您所看到的，Alice的旧承诺有两个输出，一个支付她自己70,000聪的+to_local+输出，另一个支付Bob 70,000聪。Alice现在无法花费她的70,000 +to_local+ 输出，因为它有一个432个区块（3天）的时间锁。她现在希望Bob在三天内没有注意到。
+
 Unfortunately for Alice, Bob's node is diligently monitoring the Bitcoin blockchain and sees an old commitment transaction broadcast and (eventually) confirmed on-chain.
 
+不幸的是，对于Alice来说，Bob的节点正在努力监视比特币区块链，并注意到旧的承诺交易的广播，并最终在区块链上得到了确认。
+
 Bob's node will immediately broadcast a penalty transaction. Since this old commitment was revoked by Alice, Bob has the +per_commitment_secret+ that Alice sent him. He uses that secret to construct a signature for the +revocation_pubkey+. While Alice has to wait for 432 blocks, Bob can spend _both_ outputs immediately. He can spend the +to_remote+ output with his private keys because it was meant to pay him anyway. He can also spend the output meant for Alice with a signature from the revocation key. His node broadcasts the penalty transaction shown in <<penalty_transaction>>. 
+
+Bob的节点将立即广播一笔罚款交易。由于这个旧的承诺是被Alice撤销的，Bob拥有Alices发给他的 +per_commitment_secret+ 。他使用这个密钥对 +revocation_pubkey+ 进行签名。虽然Alice需要等待432个块，但Bob可以立即花费这两个输出。他可以使用自己的私钥花费 +to_remote+ 输出，因为它本来就是要支付给他的。他还可以使用吊销密钥对为Alice准备的输出进行签名并花费。他的节点广播了在<<penalty_transaction>>中展示的罚款交易。
 
 [[penalty_transaction]]
 .Cheating and penalty
 image::images/mtln_0714.png[Cheating and penalty]
 
-Bob's penalty transaction pays 140,000 satoshis to his own wallet, taking the entire channel capacity. Alice has not only failed to cheat, she has lost everything in the attempt!(((range="endofrange", startref="ix_07_payment_channels-asciidoc17")))(((range="endofrange", startref="ix_07_payment_channels-asciidoc16")))
+(((range="endofrange", startref="ix_07_payment_channels-asciidoc17")))(((range="endofrange", startref="ix_07_payment_channels-asciidoc16")))Bob的惩罚交易将140,000个聪支付到他自己的钱包中，占据了整个通道的容量。Alice不仅未能作弊成功，而且在尝试中失去了一切！
 
-==== The Channel Reserve: Ensuring Skin in the Game
+==== 通道准备金：确保有余量资本
+((("channel reserve")))((("channel state","channel reserve")))你可能已经注意到了一种需要处理的特殊情况。如果Alice可以一直消耗她的余额直到变成零，她就有可能通过广播旧的承诺交易而关闭通道，而不会面临罚款的风险：要么撤销的承诺交易在延迟后成功，要么作弊者被抓住了但没有任何后果，因为罚款为零。从博弈论的角度来看，这是一种尝试欺骗的免费机会。这就是为什么通道准备金在发挥作用，因此潜在的欺骗者总是面临罚款的风险。(((range="endofrange", startref="ix_07_payment_channels-asciidoc15")))(((range="endofrange", startref="ix_07_payment_channels-asciidoc14")))
 
-((("channel reserve")))((("channel state","channel reserve")))You may have noticed there is a special situation that needs to be dealt with. If Alice could keep spending her balance until it is zero, she would be in a position to close the channel by broadcasting an old commitment transaction without risking a penalty: either the revoked commitment transaction succeeds after the delay, or the cheater gets caught but there's no consequence because the penalty is zero. From a game theory perspective, it is free money to attempt to cheat in this situation. This is why the channel reserve is in play, so a prospective cheater always faces the risk of a penalty.(((range="endofrange", startref="ix_07_payment_channels-asciidoc15")))(((range="endofrange", startref="ix_07_payment_channels-asciidoc14")))
+=== 关闭通道( 协作模式)
 
-=== Closing the Channel (Cooperative Close)
+((("payment channel","closing the channel", id="ix_07_payment_channels-asciidoc18", range="startofrange")))((("payment channel","cooperative close", id="ix_07_payment_channels-asciidoc19", range="startofrange")))到目前为止，我们已经将承诺交易视为单方面关闭通道的一种可能方式。 这种类型的通道关闭并不理想，因为它会强制使用它的通道合作伙伴进行时间锁定。
 
-((("payment channel","closing the channel", id="ix_07_payment_channels-asciidoc18", range="startofrange")))((("payment channel","cooperative close", id="ix_07_payment_channels-asciidoc19", range="startofrange")))So far we've looked at the commitment transactions as one possible way to close a channel, unilaterally. This type of channel closure is not ideal because it forces a timelock on the channel partner that uses it.
+关闭通道的更好方法是合作关闭。 在合作关闭中，两个 ((("closing transactions"))) 通道合作伙伴协商最终承诺交易，称为 _closing transaction_ ，该交易将每一方的余额立即支付给他们选择的目标钱包。 然后，发起通道关闭流程的合作伙伴将广播该交易。
 
-A better way to close a channel is a cooperative close. In a cooperative close, the two ((("closing transactions")))channel partners negotiate a final commitment transaction called the _closing transaction_ that pays each party their balance immediately to the destination wallet of their choice. Then, the partner that initiated the channel closing flow will broadcast the closing transaction.
 
-The closing message flow is defined in https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md#channel-close[BOLT #2: Peer Protocol, Channel Close], and is shown in <<closing_message_flow>>. 
+关闭消息流在 https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md#channel-close[BOLT #2: Peer Protocol, Channel Close] 中定义，并且是 显示在 <<closure_message_flow>> 中。
 
 [[closing_message_flow]]
 .The channel close message flow
 image::images/mtln_0715.png[The channel close message flow]
 
 [[theShutdownmessage]]
-==== The Shutdown Message
-
-((("closing the channel","shutdown message")))((("shutdown message")))Channel closing starts with one of the two channel partners sending the +shutdown+ message. The contents of this message are shown here:
+==== shutdown 消息
+((("closing the channel","shutdown message")))((("shutdown message"))) 通道关闭从发送 +shutdown+ 消息的两个通道合作伙伴之一开始。 此消息的内容如下所示：
 
 [[shutdown_message]]
 .The shutdown message
@@ -723,21 +845,29 @@ image::images/mtln_0715.png[The channel close message flow]
 
 ----
 
-+channel_id+:: The channel identifier for the channel we want to close
-+len+:: The length of the script of the destination wallet that this channel partner wants to receive their balance
-+scriptpubkey+:: A Bitcoin script of the destination wallet, in one of the "standard" Bitcoin address formats (P2PKH, P2SH, P2WPKH, P2WSH, etc.; see the <<glossary>>)
 
-Let's say Alice sends the +shutdown+ message to Bob to close their channel. Alice will specify a Bitcoin script that corresponds to the Bitcoin address of her wallet. She's telling Bob: let's make a closing transaction that pays my balance to this wallet. 
++channel_id+:: 我们要关闭的通道的标识符
 
-Bob will respond with his own +shutdown+ message indicating that he agrees to cooperatively close the channel. His +shutdown+ message includes the script for his wallet address.
++len+:: 此渠道合作伙伴希望收到余额的目标钱包脚本的长度
 
-Now both Alice and Bob have each other's preferred wallet address, and they can construct identical closing transactions to settle the channel balance.
 
-==== The closing_signed Message
++scriptpubkey+::目标钱包的比特币脚本，采用“标准”比特币地址格式之一（P2PKH、P2SH、P2WPKH、P2WSH 等；参见 <<glossary>>）
 
-((("closing the channel","closing_signed message")))((("closing_signed message")))Assuming the channel has no outstanding commitments or updates and the channel partners have exchanged the +shutdown+ messages shown in the previous section, they can now finish this cooperative close.
 
-The _funder_ of the channel (Alice in our example) starts by sending a +closing_signed+ message to Bob. This message proposes a transaction fee for the on-chain transaction, and Alice's signature (the 2-of-2 multisig) for the closing transaction. The +closing_signed+ message is shown here:
+假设 Alice 向 Bob 发送 +shutdown+ 消息以关闭他们的频道。 Alice 将指定一个与她钱包的比特币地址相对应的比特币脚本。 她在告诉Bob：让我们进行一笔结束交易，将我的余额支付给这个钱包。
+
+
+Bob 将用他自己的 +shutdown+ 消息进行响应，表明他同意合作关闭频道。 他的 +shutdown+ 消息包括他的钱包地址的脚本。
+
+
+现在 Alice 和 Bob 都有了彼此明确的收款钱包地址，他们可以构造相同的平仓交易来结算通道余额。
+
+====closing_signed消息
+
+((("closing the channel","closing_signed message")))((("closing_signed message"))) 假设频道没有未完成的承诺或更新，并且通道合作伙伴已经交换了上一节中显示的 +shutdown+ 消息，他们现在可以完成此合作关闭。
+
+
+频道的 _funder_ （在我们的示例中为 Alice）首先向 Bob 发送 +closure_signed+ 消息。 此消息建议链上交易的交易费用，以及结束交易的 Alice 的签名（2-of-2 多重签名）。 +closing_signed+ 消息如下所示：
 
 [[closing_signed_message]]
 .The closing_signed message
@@ -751,32 +881,36 @@ The _funder_ of the channel (Alice in our example) starts by sending a +closing_
 +fee_satoshis+:: The proposed on-chain transaction fee, in satoshis
 +signature+:: The sender's signature for the closing transaction
 
-When Bob receives this, he can reply with a +closing_signed+ message of his own. If he agrees with the fee, he simply returns the same proposed fee and his own signature. If he disagrees, he must propose a different +fee_satoshis+ fee.
+当 Bob 收到此消息时，他可以用自己的 +closing_signed+ 消息进行回复。 如果他同意该费用，他只需返回相同的提议费用和他自己的签名。 如果他不同意，他必须提出不同的 +fee_satoshis+ 费用。
 
-This negotiation may continue with back-and-forth +closing_signed+ messages until the two channel partners agree on a fee.
+这种协商可以通过来回的+close_signed+消息继续进行，直到两个通道合作伙伴就费用达成一致。
 
-Once Alice receives a +closing_signed+ message with the same fee as the one she proposed in her last message, the negotiation is complete. Alice signs and broadcasts the closing transaction and the channel is closed.
 
-==== The Cooperative Close Transaction
+一旦 Alice 收到一条与她在上一条消息中提议的费用相同的 +close_signed+ 消息，协商就完成了。 Alice签署并广播关闭交易，通道关闭。
 
-((("closing the channel","cooperative close transaction")))((("cooperative close transaction")))The cooperative close transaction looks similar to the last commitment transaction that Alice and Bob had agreed on. However, unlike the last commitment transaction, it does not have timelocks or penalty revocation keys in the outputs. Since both parties cooperate to produce this transaction and they won't be making any further commitments, there is no need for the asymmetric, delayed, and revocable elements in this transaction.
+==== 合作关闭交易
 
-Typically the addresses used in this cooperative close transaction are generated freshly for each channel being closed. However, it's also possible for both sides to _lock in_ a "delivery" address to be used to send their cooperatively settled funds to. Within the TLV namespace of both the `open_channel` and `accept_channel` messages, both sides are free to specify an "up-front shutdown script." Commonly, this address is derived from keys that reside in cold storage. This practice serves to increase the security of channels: if a channel partner is somehow hacked, then the hacker isn't able to cooperatively close the channel using an address they control. Instead, the uncompromised honest channel partner will refuse to cooperate on a channel closure if the specified up-front shutdown address isn't used. This feature effectively creates a "closed loop," restricting the flow of funds out of a given channel.
+((("closing the channel","cooperative close transaction")))((("cooperative close transaction")))合作关闭交易看起来类似于 Alice 和 Bob 进行协商的最后一个承诺交易。 但是，与最后一个承诺交易不同，它在输出中没有时间锁或惩罚撤销密钥。 由于双方合作产生了这笔交易，并且他们不会做出任何进一步的承诺，因此该交易中不需要不对称、延迟和可撤销的元素。
 
-Alice broadcasts a transaction shown in <<closing_transaction>> to close the channel. 
+通常，在这个合作关闭交易中使用的地址是为每个正在关闭的通道新生成的。 但是，双方也可以_锁定_一个“交付”地址，用于将合作结算的资金发送到该地址。 在 `open_channel` 和 `accept_channel` 消息的 TLV 命名空间内，双方都可以自由指定“预先关闭脚本”。 通常，此地址源自位于冷钱包中的密钥。 这种做法有助于提高通道的安全性：即使通道合作伙伴以某种方式被黑客入侵，黑客也无法使用他们控制的地址合作关闭通道。相反，如果未使用指定的预先关闭地址，较真且诚实的通道合作伙伴将拒绝合作关闭通道。此功能有效地创建了一个“闭环”，限制资金流出给定通道。
+
+
+Alice 广播的关闭通道交易如 <<closure_transaction>> 中显示。
 
 [[closing_transaction]]
 .The cooperative close transaction
 image::images/mtln_0716.png[The cooperative close transaction]
 
-As soon as this closing transaction is confirmed on the Bitcoin blockchain, the channel is closed. Now, Alice and Bob can spend their outputs as they please.(((range="endofrange", startref="ix_07_payment_channels-asciidoc19")))(((range="endofrange", startref="ix_07_payment_channels-asciidoc18")))
+一旦比特币主网上确认此关闭交易，通道就会关闭。 现在，Alice 和 Bob 可以随心所欲地使用他们的输出。(((range="endofrange", startref="ix_07_payment_channels-asciidoc19")))(((range="endofrange", startref="ix_07_payment_channels-asciidoc18")))
 
-=== Conclusion
+=== 总结
 
-In this section we looked at payment channels in much more detail. We examined three message flows used by Alice and Bob to negotiate funding, commitments, and closing of the channel. We also showed the structure of the funding, commitment, and closing transactions, and looked at the revocation and penalty mechanisms.
 
-As we will see in the next few chapters, HTLCs are used even for local payments between channel partners. They are not necessary, but the protocol is much simpler if local (one channel) and routed (many channels) payments are done in the same way.
+在本节中，我们更详细地研究了支付通道。我们检查了 Alice 和 Bob 用于协商资金、承诺和关闭通道的三个消息流。我们还展示了资金、承诺和关闭交易的结构，并研究了撤销和惩罚机制。
 
-In a single payment channel, the number of payments per second is only bound by the network capacity between Alice and Bob. As long as the channel partners are able to send a few bytes of data back and forth to agree to a new channel balance, they have effectively made a payment. This is why we can achieve a much greater throughput of payments on the Lightning Network (off-chain) than the transaction throughput that can be handled by the Bitcoin blockchain (on-chain).(((range="endofrange", startref="ix_07_payment_channels-asciidoc0")))
+
+正如我们将在接下来的几章中看到的，HTLC 甚至用于通道合作伙伴之间的本地支付。它们不是必需的，但如果本地（一个通道）和路由（多个通道）支付以相同的方式完成，协议会简单得多。
+
+在单一支付通道中，每秒的支付次数仅受 Alice 和 Bob 之间的网络容量约束。只要通道合作伙伴能够来回发送几个字节的数据以同意新的通道余额，他们就有效地进行了支付。这就是为什么我们可以在闪电网络（链下）上实现比比特币区块链（链上）处理更高的支付吞吐量的原因。(((range="endofrange", startref="ix_07_payment_channels-asciidoc0")))
 
 In the next few chapters we will discuss routing, HTLCs, and their use in channel operations.

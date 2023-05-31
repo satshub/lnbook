@@ -1,233 +1,349 @@
 [role="pagenumrestart"]
 [[intro_what_is_the_lightning_network]]
-== Introduction
-
-Welcome to _Mastering the Lightning Network_!
-
-((("Lightning Network (generally)", seealso="innovations in Lightning", id="ix_01_introduction-asciidoc0", range="startofrange")))The Lightning Network (often abbreviated as LN), is changing the way people exchange value online, and it's one of the most exciting advancements to happen in Bitcoin's history.
-Today, in 2021, the Lightning Network is still in its infancy. The Lightning Network is a protocol for using Bitcoin in a smart and nonobvious way. It is a second layer technology on top of Bitcoin.
-
-The concept of the Lightning Network was proposed in 2015, and the first implementation was launched in 2018. As of 2021, we're only beginning to see the opportunities the Lightning Network provides to Bitcoin, including improved privacy, speed, and scale.
-With core knowledge of the Lightning Network, you can help shape the future of the network while also building opportunities for yourself.
-
-We assume you already have some basic knowledge about Bitcoin, but if not, don't worry—we will explain the most important Bitcoin concepts, those you must know to understand the Lightning Network, in <<bitcoin_fundamentals_review>>. If you want to learn more about Bitcoin, you can read _Mastering Bitcoin_, 2nd edition, by Andreas M. Antonopoulos (O'Reilly), available https://github.com/bitcoinbook/bitcoinbook[for free online].
-
-While the bulk of this book is written for programmers, the first few chapters are written to be approachable by anyone regardless of technical experience. In this chapter, we'll start with some terminology, then move to look at trust and its application in these systems, and finally we'll discuss the history and future of the Lightning Network. Let's get started.
+== 简介
 
 
-=== Lightning Network Basic Concepts
+欢迎学习 _精通闪电网络_!
 
-((("Lightning Network (generally)","basic concepts", id="ix_01_introduction-asciidoc1", range="startofrange")))As we explore how the Lightning Network actually works, we will encounter some technical terminology that might, at first, be a bit confusing. While all of these concepts and terms will be explained in detail as we progress through the book and are defined in the glossary, some basic definitions now will make it easier to understand the concepts in the next two chapters. If you don't understand all of the words in these definitions yet, that's OK. You'll understand more as you move through the text.
 
-Blockchain:: ((("blockchain","defined")))A distributed transaction ledger, produced by a network of computers. Bitcoin, for example, is a system that produces a blockchain. The Lightning Network is not itself a blockchain, nor does it produce a blockchain. It is a network that relies on an existing external blockchain for its security.
 
-Digital signature:: ((("digital signatures")))A digital signature is a mathematical scheme for verifying the authenticity of digital messages or documents. A valid digital signature gives a recipient reason to believe that the message was created by a known sender, that the sender cannot deny having sent the message, and that the message was not altered in transit.
+((("Lightning Network (generally)", seealso="innovations in Lightning", id="ix_01_introduction-asciidoc0", range="startofrange")))闪电网络（通常缩写为 LN）正在改变人们在线交换价值的方式，这是比特币历史上最令人兴奋的进步之一。
+截至2021年，闪电网络仍处于起步阶段。 闪电网络是一种以智能且无感知的方式使用比特币的协议。 它是比特币之上的二层技术。
 
-Hash function:: ((("hash function, defined")))A cryptographic hash function is a mathematical algorithm that maps data of arbitrary size to a bit string of a fixed size (a hash) and is designed to be a one-way function, that is, a function which is infeasible to invert.
 
-Node:: ((("node, defined")))A computer that participates in a network. A Lightning node is a computer that participates in the Lightning Network. A Bitcoin node is a computer that participates in the Bitcoin network. Typically an LN user will run a Lightning node _and_ a Bitcoin node.
 
-On-chain versus off-chain:: ((("on-chain payment","defined")))A payment is _on-chain_ if it is recorded as a transaction on the Bitcoin (or other underlying) blockchain. ((("off-chain payment")))Payments sent via payment channels between Lightning nodes, and which are not visible in the underlying blockchain, are called _off-chain_ payments. Usually in the Lightning Network, the only on-chain transactions are those used to open and close a Lightning payment channel. A third type of channel modifying transaction exists, called splicing, which can be used to add/remove the amount of funds committed in a channel.
+闪电网络的概念于 2015 年提出，并于 2018 年首次实施。截至 2021 年，我们才刚刚开始看到闪电网络为比特币提供的机会，包括改善隐私、速度和规模。
+借助闪电网络的核心知识，您可以帮助塑造网络的未来，同时也为自己在行业里创造机会。
 
-Payment:: ((("payment","defined")))When value is exchanged on the Lightning Network, we call this a "payment" as compared to a "transaction" on the Bitcoin blockchain.
 
-Payment channel:: ((("payment channel", seealso="channel entries")))A _financial relationship_ between two nodes on the Lightning Network, typically implemented by multisignature Bitcoin transactions that share control over bitcoin between the two Lightning nodes.
 
-Routing versus sending:: ((("routing","sending versus")))((("sending, routing versus")))Unlike Bitcoin where transactions are "sent" by broadcasting them to everyone, Lightning is a routed network where payments are "routed" across one or more payment channels following a _path_ from sender to recipient.
+我们假设您已经对比特币有一些基本知识。但如果没有，请不要担心——我们将在 <<bitcoin_fundamentals_review>> 中解释最重要的比特币概念，即理解闪电网络必须了解的那些概念。 如果您想了解有关比特币的更多信息，您可以阅读 Andreas M. Antonopoulos (O'Reilly) 的《精通比特币》(第2版)，可在 https://github.com/bitcoinbook/bitcoinbook[免费在线阅读]。
 
-Transaction:: ((("transaction, defined")))A data structure that records the transfer of control over some funds (e.g., some bitcoin). The Lightning Network relies on Bitcoin transactions (or those of another blockchain) to track control of funds.
 
-More detailed definitions of these and many other terms can be found in the <<glossary>>. Throughout this book, we will explain what these concepts mean and how these technologies actually work.
+
+虽然本书的大部分内容是为程序员编写的，但前几章的编写目的是让任何人都可以轻松理解，无论技术经验如何。 在本章中，我们将从一些术语开始，然后讨论信任及其在这些系统中的应用，最后我们将讨论闪电网络的历史和未来。 让我们开始吧。
+
+
+=== 闪电网络基础概念
+
+
+
+((("Lightning Network (generally)","basic concepts", id="ix_01_introduction-asciidoc1", range="startofrange")))当我们探索闪电网络的实际工作原理时，我们会遇到一些技术术语，起初可能会让您感到疑惑。虽然所有这些概念和术语，都将在我们接下来的章节中，给出详细的解释并在词汇表中进行定义，但现在厘清一些基本定义，将使接下来两章中的概念更容易理解。 如果您还不理解这些定义中的所有词汇，其实那没关系。 随着您阅读的加深，您会了解更多。
+
+
+区块链:: ((("blockchain","defined")))由计算机网络生成的分布式交易账本。 例如，比特币是一个产生区块链的系统。闪电网络本身不是区块链，也不会产生区块链。它是一个依赖于现有外部区块链来保证其安全性的网络。
+
+
+数字签名:: ((("digital signatures")))数字签名是一种用于验证数字消息或文档真实性的数学方案。 有效的数字签名使接收者有理由相信该消息是由已知的发件人创建的，发件人不能否认已发送该消息，并且该消息在传输过程中未被更改。
+
+
+哈希函数:: ((("hash function, defined")))密码散列函数是一种数学算法，它将任意大小的数据映射到固定大小的位串（散列），并被设计为单向函数，即无法反向计算的函数。
+
+
+节点:: ((("node, defined")))即参与网络的计算机。 闪电节点是参与闪电网络的计算机。 比特币节点是参与比特币网络的计算机。 通常，LN 用户将同时运行闪电节点和比特币节点。
+
+
+链上行为 vs 链下行为:: ((("on-chain payment","defined")))如果付款被记录为比特币（或其他）区块链上的交易，则付款是 _链上_ 的行为。((("off-chain payment")))通过闪电节点之间的支付渠道发送的支付，在底层区块链中不可见，称为 _链下_ 支付。 通常在闪电网络中，唯一的链上交易是用于打开和关闭闪电支付通道的交易。 另外，存在第三种类型的通道修改交易(称为拼接)，可用于添加/删除通道中承诺的资金数量。
+
+
+支付:: ((("payment","defined")))当在闪电网络上交换价值时，我们将其称为“支付”，而不是比特币区块链上的“交易”。
+
+
+支付通道:: ((("payment channel", seealso="channel entries")))闪电网络上两个节点之间的“财务关系”，通常由多重签名的比特币交易实现，以此保证在两个闪电网络节点之间共享对比特币的控制权。
+
+
+路由 vs 发送:: ((("routing","sending versus")))((("sending, routing versus")))与通过向所有人广播交易来“发送”交易的比特币不同，闪电网络是一个路由网络。它的支付，通过一个或多个支付渠道“路由”，遵循从发送者到接收者的 _路径_ 。
+
+
+交易:: ((("transaction, defined"))) 交易是一种数据结构，该数据结构记录了对某些资金（例如某些比特币）的控制权转移的。闪电网络依靠比特币交易（或其他区块链的交易）来跟踪资金控制。
+
+
+以上这些概念以及其他概念的更详细定义可以在 <<glossary>> 章节中进一步学习了解。 在本书中，我们将解释这些概念的含义以及这些技术的实际工作原理。
+
+
 
 [TIP]
 ====
-Throughout this book, you will see "Bitcoin" with the first letter capitalized, which refers to the _Bitcoin system_ and is a proper noun. You will also see "bitcoin," with a lowercase _b_, which refers to the currency unit. Each bitcoin is further subdivided into 100 million units each called a "satoshi" (singular) or "satoshis" (plural).(((range="endofrange", startref="ix_01_introduction-asciidoc1")))
+在本书中，您会看到首字母大写的“比特币”，它指的是 _比特币系统_，是一个专有名词。 您还将看到带有小写 _b_ 的“比特币”，表示货币单位。 每个比特币进一步细分为 1 亿个单位，每个单位称为“satoshi”（单数）或“satoshis”（复数）。
 ====
 
-Now that you're familiar with these basic terms, let's move to a concept you are already comfortable with: trust.
 
+现在您已经熟悉了这些基本术语，让我们转向一个您已经熟悉的概念：信任。
 
 === Trust in Decentralized Networks
 
-((("Lightning Network (generally)","trust in decentralized networks")))((("trustless systems","trust in decentralized networks")))You will often hear people calling Bitcoin and the Lightning Network "trustless." At first glance this is confusing. After all, isn't trust a good thing? Banks even use it in their names! Isn't a "trustless" system, a system devoid of trust, a bad thing?
-
-The use of the word "trustless" is intended to convey the ability to operate without _needing_ trust in the other participants in the system. In a decentralized system like Bitcoin, you can always choose to transact with someone you trust. However, the system ensures you can't be cheated even if you can't trust the other party in a transaction. Trust is a nice-to-have instead of a must-have property of the system.
-
-Contrast that to traditional systems like banking where you must place your trust in a third party, since it controls your money. If the bank violates your trust, you may be able to find some recourse from a regulator or court, but at an enormous cost of time, money, and effort.
-
-Trustless does not mean devoid of trust. It means that trust is not a necessary prerequisite to all transactions and that you can transact even with people you don't trust because the system prevents cheating.
-
-Before we get into how the Lightning Network works, it's important to understand one basic concept that underlies Bitcoin, the Lightning Network, and many other such systems: something we call a _fairness protocol_. A fairness protocol is a way to achieve fair outcomes between participants, who do not need to trust each other, without the need for a central authority, and it is the backbone of decentralized systems like Bitcoin.
+=== 分布式网络中的信任
 
 
-=== Fairness Without Central Authority
+((("Lightning Network (generally)","trust in decentralized networks")))((("trustless systems","trust in decentralized networks")))你会经常听到人们称比特币和闪电网络“免信任”。乍一看，这令人困惑。毕竟，信任不是一件好事吗？银行甚至在他们的名字中使用它！一个“去信任”的系统，一个缺乏信任的系统，难道不是一件坏事吗？
 
-((("fairness, ensuring")))((("Lightning Network (generally)","fairness without central authority")))When people have competing interests, how can they establish enough trust to engage in some cooperative or transactional behavior? The answer to this question lies at the core of several scientific and humanistic disciplines, such as economics, sociology, behavioral psychology, and mathematics. Some of those disciplines give us "soft" answers that depend on concepts such as reputation, fairness, morality, and even religion. Other disciplines give us concrete answers that depend only on the assumption that the participants in these interactions will act rationally, with their self-interest as the main objective.
 
-In broad terms, there are a handful of ways to ensure fair outcomes in interactions between individuals who may have competing interests:
+使用“免信任”一词，旨在传达该系统具备这样一种能力，即无需信任系统中其他参与者的操作。 在像比特币这样的去中心化系统中，您可以选择与您信任的人进行交易。 但是，即使您不信任交易中的另一方，该系统也可以确保您不会被欺骗。 在“免信任”系统中，信任是“尽量”具备的属性，而不是必备的属性。
 
-Require trust:: You only interact with people whom you already trust, due to prior interactions, reputation, or familial relationships. This works well enough at small scale, especially within families and small groups, that it is the most common basis for cooperative behavior. Unfortunately, it doesn't scale and it suffers from tribalist (in-group) bias.
 
-Rule of law:: Establish rules for interactions that are enforced by an institution. This scales better, but it cannot scale globally due to differences in customs and traditions, as well as the inability to scale the institutions of enforcement. One nasty side effect of this solution is that the institutions become more and more powerful as they get bigger and that may lead to corruption.
+与银行等传统系统相比，您必须信任第三方，因为它控制着您的资金。 如果银行违反了您的信任，您也许可以向监管机构或法院寻求一些追索权，但要付出巨大的时间、金钱和精力。
 
-Trusted third parties:: Put an intermediary in every interaction to enforce fairness. Combined with the "rule of law" to provide oversight of intermediaries, this scales better, but suffers from the same imbalance of power: the intermediaries get very powerful and may attract corruption. Concentration of power leads to systemic risk and systemic failure ("too big to fail").
 
-Game theoretical fairness protocols:: This last category emerges from the combination of the internet and cryptography and is the subject of this section. Let's see how it works and what its advantages and disadvantages are.
+免信任并不意味着没有信任。这意味着信任不是所有交易的必要先决条件，您甚至可以与您不信任的人进行交易，因为系统可以防止作弊。
 
-==== Trusted Protocols Without Intermediaries
 
-((("fairness protocol","trusted protocols without intermediaries")))Cryptographic systems like Bitcoin and the Lightning Network are systems that allow you to transact with people (and computers) that you don't trust. This is often referred to as "trustless" operation, even though it is not actually trustless. You have to trust in the software that you run, and you have to trust that the protocol implemented by that software will result in fair outcomes.
+在我们了解闪电网络的工作原理之前，了解比特币、闪电网络和其他此类系统的一个基本概念非常重要，我们称这个概念为“公平协议”。 公平协议是一种在参与者之间实现公平结果的方法，参与者不需要相互信任，也不需要中央权威，它是比特币等去中心化系统的支柱。
 
-The big distinction between a cryptographic system like this and a traditional financial system is that in traditional finance you have a _trusted third party_, for example a bank, to ensure that outcomes are fair. A significant problem with such systems is that they give too much power to the third party, and they are also vulnerable to a _single point of failure_. If the trusted third party itself violates trust or attempts to cheat, the basis of trust breaks.
 
-As you study cryptographic systems, you will notice a certain pattern: instead of relying on a trusted third party, these systems attempt to prevent unfair outcomes by using a system of incentives and disincentives. In cryptographic systems you place trust in the ((("protocol, defined")))_protocol_, which is effectively a system with a set of rules that, if properly designed, will correctly apply the desired incentives and disincentives. The advantage of this approach is twofold: not only do you avoid trusting a third party, you also reduce the need to enforce fair outcomes. So long as the participants follow the agreed protocol and stay within the system, the incentive mechanism in that protocol achieves fair outcomes without enforcement.
+=== 无中央权威的公平
 
-((("game theory")))The use of incentives and disincentives to achieve fair outcomes is one aspect of a branch of mathematics called _game theory_, which studies "models of strategic interaction among rational decision makers."footnote:[The Wikipedia https://en.wikipedia.org/wiki/Game_theory[entry on game theory] provides more information.] Cryptographic systems that control financial interactions between participants, such as Bitcoin and the Lightning Network, rely heavily on game theory to prevent participants from cheating and allow participants who don't trust each other to achieve fair outcomes.
+((("fairness, ensuring")))((("Lightning Network (generally)","fairness without central authority")))当人们有相互竞争的利益时，他们如何建立足够的信任来进行一些合作或交易行为？ 这个问题的答案，来自于经济学、社会学、行为心理学和数学等几个自然科学和人文科学的核心。 其中一些学科给我们的“软”答案取决于声誉、公平、道德甚至宗教等概念。其他学科给我们的具体答案仅取决于这些互动的参与者将以他们的自身利益为主要目标的理性行为这一假设。
 
-While game theory and its use in cryptographic systems may appear confounding and unfamiliar at first, chances are you're already familiar with these systems in your everyday life; you just don't recognize them yet. In the following section we'll use a simple example from childhood to help us identify the basic pattern. Once you understand the basic pattern, you will see it everywhere in the blockchain space and you will come to recognize it quickly and intuitively.
 
-((("fairness protocol", id="ix_01_introduction-asciidoc2", range="startofrange")))In this book, we call this pattern a ((("fairness protocol","defined")))_fairness protocol_, defined as a process that uses a system of incentives and/or disincentives to ensure fair outcomes for participants who don't trust each other. Enforcement of a fairness protocol is only necessary to ensure that the participants can't escape the incentives or disincentives.
+从广义上讲，有几种方法可以确保可能具有竞争利益的个人之间的互动结果公平：
 
-==== A Fairness Protocol in Action
 
-((("fairness protocol","real-world example")))Let's look at an example of a fairness protocol that you may already be familiar with.
+信任必备:: 由于之前的互动、声誉或家庭关系，您只与您已经信任的人互动。 这在小范围内非常有效，特别是在家庭和小团体中，它是合作行为的最常见基础。 不幸的是，它无法扩展，并且受到部落主义（群体内）偏见的影响。
 
-Imagine a family lunch, with a parent and two children. The children are fussy eaters and the only thing they will agree to eat is fried potatoes. The parent has prepared a bowl of fried potatoes ("french fries" or "chips" depending on which English dialect you use). The two siblings must share the plate of chips. The parent must ensure a fair distribution of chips to each child; otherwise, the parent will have to hear constant complaining (maybe all day), and there's always a possibility of an unfair situation escalating to violence. What is a parent to do?
 
-There are a few different ways that fairness can be achieved in this strategic interaction between two siblings that do not trust each other and have competing interests. The naive but commonly used method is for the parent to use their authority as a trusted third party: they split the bowl of chips into two servings. This is similar to traditional finance, where a bank, accountant, or lawyer acts as a trusted third party to prevent any cheating between two parties who want to transact.
+法治:: 建立由机构强制执行的交互规则。 这可以更好地扩展，但由于习俗和传统的差异以及无法扩展执法机构，它无法在全球范围内扩展。 这种解决方案有一个令人讨厌的副作用，即随着机构的扩大，机构变得越来越强大，很可能导致腐败。
 
-The problem with this scenario is that it vests a lot of power and responsibility in the hands of the trusted third party. In this example, the parent is fully responsible for the equal allocation of chips, and the parties merely wait, watch, and complain.  The children accuse the parent of playing favorites and not allocating the chips fairly. The siblings fight over the chips, yelling "that chip is bigger!" and dragging the parent into their fight. It sounds awful, doesn't it? Should the parent yell louder? Take all of the chips away? Threaten to never make chips again and let those ungrateful children go hungry?
 
-A much better solution exists: the siblings are taught to play a game called "split and choose." At each lunch one sibling splits the bowl of chips into two servings and the _other_ sibling gets to choose which serving they want. Almost immediately, the siblings figure out the dynamic of this game. If the one splitting makes a mistake or tries to cheat, the other sibling can "punish" them by choosing the bigger bowl. It is in the best interest of both siblings, but especially the one splitting the bowl, to play fair. Only the cheater loses in this scenario. The parent doesn't even have to use their authority or enforce fairness. All the parent has to do is _enforce the protocol_; as long as the siblings cannot escape their assigned roles of "splitter" and "chooser," the protocol itself ensures a fair outcome without the need for any intervention. The parent can't play favorites or distort the outcome.
+信任三方机构:: 在每一次互动中都引入一个中介机构以确保公平。结合“法治”对中介机构进行监督，这种方式规模更大，但同样存在权力不平衡：中介机构变得非常强大，可能会招来腐败。权力集中会导致系统性风险和系统性失败（“大而不能倒”）。
+
+
+基于博弈论的公平协议::  最后一类来自互联网和密码学的结合，是本节的主题。 让我们看看它是如何工作的，以及它的优点和缺点是什么。
+
+==== 无中间人的信任协议
+
+
+((("fairness protocol","trusted protocols without intermediaries")))像比特币和闪电网络这样的加密系统是允许你与你不信任的人（包括计算机）进行交易的系统。这通常被称为“免信任”操作，即使它实际上并不是无信任的。 毕竟，您必须信任您运行的软件，并且您必须相信该软件实现的协议将产生公平的结果。
+
+
+像这样的加密系统与传统金融系统之间的最大区别在于，在传统金融中，您有一个“受信任的第三方”，例如银行，以确保结果是公平的。 此类系统的一个重要问题是它们向第三方提供了过多的权力，而且它们也容易受到“单点故障”的影响。 如果受信任的第三方本身违反信任或试图作弊，信任的基础就会破裂。
+
+
+当你研究密码系统时，你会注意到一个特定的模式：这些系统不依赖受信任的第三方，而是试图通过使用激励和抑制系统来防止不公平的结果。 在密码系统中，您只需要信任 ((("protocol, defined")))_protocol_，它实际上是一个具有一组规则的系统。如果protocol设计得当，将正确应用所需的激励和抑制。 这种方法的优点是双重的：您不仅可以避免信任第三方，还可以减少您获取公平结果必须付出的努力。 只要参与者遵循商定的协议并留在系统内，该协议中的激励机制就可以在不强制执行的情况下实现公平的结果。
+
+
+((("game theory")))使用激励机制和抑制机制来实现公平结果是数学分支的一个方面，这被称为博弈论。它研究“理性决策者之间的战略互动模型”footnote:[The Wikipedia https://en.wikipedia.org/wiki/Game_theory[entry on game theory] provides more information.]。控制参与者之间财务互动的密码系统(例如比特币和闪电网络)，严重依赖博弈论来防止参与者作弊，并允许互不信任的参与者获得公平的结果。
+
+
+虽然博弈论及其在密码系统中的使用，一开始可能看起来令人困惑和陌生，但您很可能在日常生活中早已熟悉这些系统； 你只是没有感知到他们罢了。 在接下来的部分，我们将使用童年时期的一个简单示例，来帮助我们识别博弈论的基本模式。 一旦你了解了基本模式，你会在区块链系统中随处看到它，同时也会快速直观地识别它。
+
+
+((("fairness protocol", id="ix_01_introduction-asciidoc2", range="startofrange"))) 在本书中，我们将这种模式称为 ((("fairness protocol","defined")))_fairness protocol_，他是指使用激励和(或)抑制系统，来确保彼此无信任的参与者获得公平结果的过程。公平协议的执行只需要确保参与者无法逃避激励或抑制。
+
+
+==== 现实中的公平协议
+
+
+((("fairness protocol","real-world example")))让我们看一个您可能已经熟悉的公平协议示例。
+
+
+想象一下家庭午餐，有父母和两个孩子。孩子们挑食，他们唯一同意吃的就是炸土豆。家长准备了一碗炸土豆（“炸薯条”或“薯条”，取决于您使用的英语方言）。 两个兄弟姐妹必须共享筹码盘。 家长必须确保将筹码公平分配给每个孩子； 否则，父母将听到不断的抱怨（可能整天），并且总是有可能将不公平的情况升级为暴力。父母该做什么？
+
+
+在两个互不信任且利益冲突的兄弟姐妹之间的这种战略互动中，有几种不同的方式可以实现公平。粗暴且常用的方法是让父母使用他们作为受信任第三方的权威：他们将一碗薯片分成两份，这类似于传统金融。在这个系统中，银行、会计师或律师充当受信任的第三方，以防止想要进行交易的两方之间，出现任何欺诈行为。
+
+
+这种情况的问题在于它将大量的权力和责任赋予了受信任的第三方手中。 在这个例子中，父母对筹码的平等分配负全部责任，各方只是等待、观察和抱怨。 孩子们指责家长玩偏爱，不公平分配筹码。 兄弟姐妹争着筹码，大喊“那个筹码更大！” 并将父母拖入他们的战斗。 听起来很糟糕，不是吗？ 父母应该大声喊叫吗？ 把所有的筹码都拿走？ 威胁不再做薯条，让那些忘恩负义的孩子挨饿？
+
+
+存在一个更好的解决方案：教兄弟姐妹玩一种叫做“拆分和选择”的游戏。 每次午餐时，一个兄弟姐妹将一碗薯片分成两份，另一个兄弟姐妹可以选择他们想要的份量。与此同时，让兄弟姐妹弄清楚了这场游戏的动态性，即如果一个“拆分”犯了错误或试图作弊，另一个兄弟姐妹可以通过选择更大的碗来“惩罚”他们。 公平竞争符合兄弟姐妹的最大利益，尤其是分盘者。 在这种情况下，只有作弊者会输。父母甚至不必使用他们的权力或强制执行公平。 父母所要做的就是 _执行协议_ ； 只要兄弟姐妹不能逃避分配给他们的“拆分者”和“选择者”角色，协议本身就可以确保公平的结果，而无需任何干预。父母不能玩最爱或扭曲结果。
+
 
 [WARNING]
 ====
-While the infamous chip battles of the 1980s neatly illustrate the point, any similarity between the preceding scenario and any of the authors' actual childhood experiences with their cousins is entirely coincidental...or is it?
+虽然 1980 年代臭名昭著的筹码大战清楚地说明了这一点，但前面的场景与作者和他表亲的任何实际童年经历之间的任何相似之处都完全是巧合……或者是这样吗？
 ====
 
-==== Security Primitives as Building Blocks
-
-((("fairness protocol","security primitives as building blocks")))((("security primitives")))In order for a fairness protocol like this to work, there need to be certain guarantees, or _security primitives_, that can be combined to ensure enforcement. The first security primitive is _strict time ordering/sequencing_: the "splitting" action must happen before the "choosing" action. It's not immediately obvious, but unless you can guarantee that action A happens before action B, then the protocol falls apart. The second security primitive is _commitment with nonrepudiation_. Each sibling must commit to their choice of role: either splitter or chooser. Also, once the splitting has been completed, the splitter is committed to the split they created—they cannot repudiate that choice and go try again.
-
-Cryptographic systems offer a number of security primitives that can be combined in different ways to construct a fairness protocol. In addition to sequencing and commitment, we can also use many other tools:
-
-- Hash functions to fingerprint data, as a form of commitment, or as the basis for a digital signature
-- Digital signatures for authentication, nonrepudiation, and proof of ownership of a secret
-- Encryption/decryption to restrict access to information to authorized participants only
-
-This is only a small list of a whole "menagerie" of security and cryptographic primitives that are in use. More basic primitives and combinations are invented all the time.
-
-In our real-life example, we saw one form of fairness protocol called "split and choose." This is just one of a myriad different fairness protocols that can be built by combining the building blocks of security primitives in different ways. But the basic pattern is always the same: two or more participants interact without trusting each other by engaging in a series of steps that are part of an agreed protocol. The protocol's steps arrange incentives and disincentives to ensure that if the participants are rational, cheating is counterproductive and fairness is the automatic outcome. Enforcement is not necessary to get fair outcomes—it is only necessary to keep the participants from breaking out of the agreed protocol.
-
-Now that you understand this basic pattern, you will start seeing it everywhere in Bitcoin, the Lightning Network, and many other systems. Let's look at some specific examples next.
-
-==== Example of the Fairness Protocol
-
-((("fairness protocol","Proof of Work example")))((("PoW (Proof of Work) algorithm")))((("Proof of Work (PoW) algorithm")))The most prominent example of a fairness protocol is Bitcoin's consensus algorithm, Proof of Work (PoW). In Bitcoin, miners compete to verify transactions and aggregate them in blocks. To ensure that the miners do not cheat, without entrusting them with authority, Bitcoin uses a system of incentives and disincentives. Miners have to use electricity and dedicate hardware doing "work" that is embedded as a "proof" inside every block. This is achieved because of a property of hash functions where the output value is randomly distributed across the entire range of possible outputs. If miners succeed in producing a valid block fast enough, they are rewarded by earning the block reward for that block. Forcing miners to use a lot of electricity before the network considers their block means that they have an incentive to correctly validate the transactions in the block. If they cheat or make any kind of mistake, their block is rejected and the electricity they used to "prove" it is wasted. No one needs to force miners to produce valid blocks; the reward and punishment incentivize them to do so. All the protocol needs to do is ensure that only valid blocks with Proof of Work are accepted.
-
-The fairness protocol pattern can also be found in many different aspects of the Lightning Network:
-
-* Those who fund channels make sure that they have a refund transaction signed before they publish the funding transaction.
-
-* Whenever a channel is moved to a new state, the old state is "revoked" by ensuring that if anyone tries to broadcast it, they lose the entire balance and get punished.
-
-* Those who forward payments know that if they commit funds forward, they can either get a refund or get paid by the node preceding them.
-
-Again and again, we see this pattern. Fair outcomes are not enforced by any authority. They emerge as the natural consequence of a protocol that rewards fairness and punishes cheating, a fairness protocol that harnesses self-interest by directing it toward fair outcomes.
-
-Bitcoin and the Lightning Network are both implementations of fairness protocols. So why do we need the Lightning Network? Isn't Bitcoin enough?(((range="endofrange", startref="ix_01_introduction-asciidoc2")))
 
 
-=== Motivation for the Lightning Network
-
-((("Lightning Network (generally)","motivation for", id="ix_01_introduction-asciidoc3", range="startofrange")))Bitcoin is a system that records transactions on a globally replicated public ledger. Every transaction is seen, validated, and stored by every participating computer. As you can imagine, this generates a lot of data and is difficult to scale.
-
-As Bitcoin and the demand for transactions grew, the number of transactions in each block increased until it eventually reached the block size limit.
-Once blocks are "full," excess transactions are left to wait in a queue. Many users will increase the fees they're willing to pay to buy space for their transactions in the next block.
-
-If demand continues to outpace the capacity of the network, an increasing number of users' transactions are left waiting unconfirmed. Competition for fees also increases the cost of each transaction, making many smaller-value transactions (e.g., microtransactions) completely uneconomical during periods of particularly high demand.
-
-To solve this problem, we could increase the block size limit to create space for more transactions. An increase in the "supply" of block space will lead to a lower price equilibrium for transaction fees.
-
-However, increasing block size shifts the cost to node operators and requires them to expend more resources to validate and store the blockchain. Because blockchains are gossip protocols, each node is required to know and validate every single transaction that occurs on the network. Furthermore, once validated, each transaction and block must be propagated to the node's "neighbors," multiplying the bandwidth requirements. As such, the greater the block size, the greater the bandwidth, processing, and storage requirements for each individual node. Increasing transaction capacity in this way has the undesirable effect of centralizing the system by reducing the number of nodes and node operators. Since node operators are not compensated for running nodes, if nodes are very expensive to run, only a few well-funded node operators will continue to run nodes.
-
-==== Scaling Blockchains
-
-((("blockchain","scaling", id="ix_01_introduction-asciidoc4", range="startofrange")))((("Lightning Network (generally)","scaling blockchains", id="ix_01_introduction-asciidoc5", range="startofrange")))The side effects of increasing the block size or decreasing the block time with respect to centralization of the network are severe, as a few calculations with the numbers show.
-
-Let us assume the usage of Bitcoin grows so that the network has to process 40,000 transactions per second, which is the approximate transaction processing level of the Visa network during peak usage.
-
-Assuming 250 bytes on average per transaction, this would result in a data stream of 10 megabytes per second (MBps) or 80 megabits per second (Mbps) just to be able to receive all the transactions.
-This does not include the traffic overhead of forwarding the transaction information to other peers.
-While 10 MBps does not seem extreme in the context of high-speed fiber optic and 5G mobile speeds, it would effectively exclude anyone who cannot meet this requirement from running a node, especially in countries where high-performance internet is not affordable or widely available.
-
-Users also have many other demands on their bandwidth and cannot be expected to expend this much only to receive transactions.
-
-Furthermore, storing this information locally would result in 864 gigabytes per day. This is roughly one terabyte of data, or the size of a hard drive.
+==== 构建区块的安全原语
 
 
-Verifying 40,000 Elliptic Curve Digital Signature Algorithm (ECDSA) signatures per second is also barely feasible (see https://bitcoin.stackexchange.com/questions/95339/how-many-bitcoin-transactions-can-be-verified-per-second[this article on StackExchange]), making the _initial block download (IBD)_ of the Bitcoin blockchain  (synchronizing and verifying everything starting from the genesis block) almost impossible without very expensive hardware.
-
-While 40,000 transactions per second seems like a lot, it only achieves parity with traditional financial payment networks at peak times. Innovations in machine-to-machine payments, microtransactions, and other applications are likely to push demand to many orders higher than that.
-
-Simply put: you can't scale a blockchain to validate the entire world's transactions in a decentralized way.
-
-_But what if each node wasn't required to know and validate every single transaction? What if there was a way to have scalable off-chain transactions, without losing the security of the Bitcoin network?_
-
-In February 2015, Joseph Poon and Thaddeus Dryja proposed a possible solution to the Bitcoin scalability problem, with the publication of "The Bitcoin Lightning Network: Scalable Off-Chain Instant Payments."footnote:[Joseph Poon and Thaddeus Dryja. "The Bitcoin Lightning Network: Scalable Off-Chain Instant Payments." DRAFT Version 0.5.9.2. January 14, 2016. https://lightning.network/lightning-network-paper.pdf[].]
-
-In the (now outdated) whitepaper, Poon and Dryja estimate that in order for Bitcoin to reach the 47,000 transactions per second processed at peak by Visa, it would require 8 GB blocks.
-This would make running a node completely untenable for anyone but large-scale enterprises and industrial-grade operations.
-The result would be a network in which only a few users could actually validate the state of the ledger.
-Bitcoin relies on users validating the ledger for themselves, without explicitly trusting third parties, in order to stay decentralized.
-Pricing users out of running nodes would force the average user to trust third parties to discover the state of the ledger, ultimately breaking the trust model of Bitcoin.
-
-The Lightning Network proposes a new network, a second layer, where users can make payments to each other peer-to-peer, without the necessity of publishing a transaction to the Bitcoin blockchain for each payment.
-Users may pay each other on the Lightning Network as many times as they want, without creating additional Bitcoin transactions or incurring on-chain fees.
-They only make use of the Bitcoin blockchain to load bitcoin onto the Lightning Network initially and to _settle_, that is, to remove bitcoin from the Lightning Network.
-The result is that many more Bitcoin payments can take place off-chain, with only the initial loading and final settlement transactions needing to be validated and stored by Bitcoin nodes.
-Aside from reducing the burden on nodes, payments on the Lightning Network are cheaper for users because they do not need to pay blockchain fees, and more private for users because they are not published to all participants of the network and furthermore are not stored permanently.
-
-While the Lightning Network was initially conceived for Bitcoin, it can be implemented on any blockchain that meets some basic technical requirements. Other blockchains, such as Litecoin, already support the Lightning Network. Additionally, several other blockchains are developing similar second layer or "layer 2" solutions to help them scale(((range="endofrange", startref="ix_01_introduction-asciidoc5")))(((range="endofrange", startref="ix_01_introduction-asciidoc4"))).(((range="endofrange", startref="ix_01_introduction-asciidoc3")))
-
-=== The Lightning Network's Defining Features
-
-((("Lightning Network (generally)","defining features")))The Lightning Network is a network that operates as a second layer protocol on top of Bitcoin and other blockchains. The Lightning Network enables fast, secure, private, trustless, and permissionless payments. Here are some of the features of the Lightning Network:
-
- * Users of the Lightning Network can route payments to each other for low cost and in real time.
- * Users who exchange value over the Lightning Network do not need to wait for block confirmations for payments.
- * Once a payment on the Lightning Network has completed, usually within a few seconds, it is final and cannot be reversed. Like a Bitcoin transaction, a payment on the Lightning Network can only be refunded by the recipient.
- * Whereas on-chain Bitcoin transactions are broadcast and verified by all nodes in the network, payments routed on the Lightning Network are transmitted between pairs of nodes and are not visible to everyone, resulting in much greater privacy.
- * Unlike transactions on the Bitcoin network, payments routed on the Lightning Network do not need to be stored permanently. Lightning thus uses fewer resources and hence is cheaper. This property also has benefits for privacy.
- * The Lightning Network uses onion routing, similar to the protocol used by The Onion Router (Tor) privacy network, so that even the nodes involved in routing a payment are only directly aware of their predecessor and successor in the payment route.
- * When used on top of Bitcoin, the Lightning Network uses real bitcoin, which is always in the possession (custody) and full control of the user. Lightning is not a separate token or coin, it _is_ Bitcoin.
+((("fairness protocol","security primitives as building blocks")))((("security primitives")))为了使这样的公平协议起作用，需要一些安全原语，可以将它们组合起来以确保执行。第一个安全原语是严格的时间序列：“拆分”动作必须发生在“选择”动作之前。这不是很明显，但除非你能保证动作 A 在动作 B 之前发生，否则协议就会崩溃。第二个安全原语是具有不可否认性的承诺。 每个兄弟姐妹都必须承诺他们选择的角色：拆分者或选择者。 此外，一旦拆分完成，拆分器将致力于他们创建的拆分，他们无法拒绝该选择并再次尝试。
 
 
-[[user-stories]]
-=== Lightning Network Use Cases, Users, and Their Stories
+密码系统提供了许多安全原语，它们可以以不同的方式组合以构建公平协议。 除了排序和承诺，我们还可以使用许多其他工具：
 
-((("Lightning Network (generally)","use cases and users")))To better understand how the Lightning Network actually works, and why people use it, we'll be following a number of users and their stories.
 
-In our examples, some of the people have already used Bitcoin and others are completely new to the Bitcoin network. Each person and their story, as listed here, illustrate one or more specific use cases. We'll be revisiting them throughout this book:
+- 指纹数据的哈希函数，作为一种承诺形式或作为数字签名的基础
+- 用于身份验证、不可否认性和秘密所有权证明的数字签名
+- 加密/解密，以限制仅授权参与者访问信息
 
-Consumer::
-Alice is a Bitcoin user who wants to make fast, secure, cheap, and private payments for small retail purchases. She buys coffee with bitcoin, using the Lightning Network.
 
-Merchant::
-Bob owns a coffee shop, "Bob's Cafe." On-chain Bitcoin payments don't scale for small amounts like a cup of coffee, so he uses the Lightning Network to accept Bitcoin payments almost instantaneously and for low fees.
+以上这些，只是正在使用的安全和密码原语的整个“家族”的一小部分。更基本的原语和组合一直在发明。
 
-Software service business::
-Chan is a Chinese entrepreneur who sells information services related to the Lightning Network, as well as Bitcoin and other cryptocurrencies. Chan is selling these information services over the internet by implementing micropayments over the Lightning Network. Additionally, Chan has implemented a liquidity provider service that rents inbound channel capacity on the Lightning Network, charging a small bitcoin fee for each rental period.
 
-Gamer::
-Dina is a teenage gamer from Russia. She plays many different computer games, but her favorite ones are those that have an "in-game economy" based on real money. As she plays games, she also earns money by acquiring and selling virtual in-game items. The Lightning Network allows her to transact in small amounts for in-game items as well as earn small amounts for completing quests.
+在我们的实际示例中，我们看到了一种称为“拆分和选择”的公平协议形式。我们可以通过不同的方式来组合安全原语，并构建无数种公平协议。上述示例只是其中一种而已。但基本模式始终是相同的：两个或多个参与者在不相互信任的情况下通过参与一系列协议的步骤进行交互。该协议的步骤，通过激励和抑制措施，以确保：如果参与者是理性的，则作弊会适得其反，而公平是自动的结果。 强制执行不是获得公平结果的必要条件——只需要防止参与者违反商定的协议。
 
-=== Conclusion
 
-In this chapter, we talked about the fundamental concept that underlies both Bitcoin and the Lightning Network: the fairness protocol.
+现在您了解了这种基本模式。您将在比特币、闪电网络和许多其他系统中随处看到它。 接下来让我们看一些具体的例子。
 
-We looked at the history of the Lightning Network and the motivations behind second layer scaling solutions for Bitcoin and other blockchain-based networks.
 
-We learned basic terminology including node, payment channel, on-chain transactions, and off-chain payments.
+==== 公平协议示例
 
-Finally, we met Alice, Bob, Chan, and Dina, whom we'll be following throughout the rest of the book.(((range="endofrange", startref="ix_01_introduction-asciidoc0"))) In the next chapter, we'll meet Alice and walk through her thought process as she selects a Lightning wallet and prepares to make her first Lightning payment to buy a cup of coffee from Bob's Cafe.((("Bitcoin (system)","Lightning Network compared to", see="Bitcoin–Lightning Network comparisons")))((("channel", see="payment channel")))((("containers", see="Docker containers")))((("delivering payment", see="payment delivery")))((("DoS attacks", see="denial-of-service attacks")))((("encrypted message transport", see="Lightning encrypted transport protocol")))((("future issues", see="innovations in Lightning")))((("HTLCs", see="hash time-locked contracts")))((("invoices", see="Lightning invoices")))((("Lightning Network (generally)","Bitcoin compared to", see="Bitcoin–Lightning Network comparisons")))((("Lightning Network (generally)","invoices", see="Lightning invoices")))((("Lightning Network (generally)","network architecture", see="architecture, Lightning Network")))((("Lightning Network node", see="Lightning node entries")))((("Lightning payment requests", see="Lightning invoices")))((("LN node", see="Lightning node entries")))((("LND node project", see="Lightning Network Daemon node project")))((("message transport", see="Lightning encrypted transport protocol")))((("node", see="Lightning node entries")))((("payment channel","routing on network of", see="routing")))((("payment requests", see="Lightning invoices")))((("payment routing", see="routing")))((("privacy", see="breaches of privacy")))((("privacy", see="security and privacy")))((("private channels", see="unannounced channels")))((("TLV", see="Type-Length-Value")))((("wallet", see="Lightning wallet")))
+
+((("fairness protocol","Proof of Work example")))((("PoW (Proof of Work) algorithm")))((("Proof of Work (PoW) algorithm")))公平协议最突出的例子是比特币的共识算法，工作证明（PoW）。在比特币中，矿工竞争验证交易并将它们聚合成块。为了确保矿工在没有授权的情况下不作弊，比特币使用了激励和抑制系统。矿工必须使用电力和专门的硬件来做“工作”，作为嵌入每个区块的“证明”。这是因为散列函数的一个特性而实现的，其中输出值随机分布在整个可能的输出范围内。如果矿工以足够快的速度成功生成有效区块，他们将通过获得该区块的区块奖励来获得奖励。强迫矿工在网络考虑他们的区块之前使用大量电力意味着他们有动力正确验证区块中的交易。如果他们作弊或犯了任何错误，他们的区块就会被拒绝，他们用来“证明”区块的电力就会被浪费掉。没有人需要强迫矿工生产有效区块；奖励和惩罚机制激励他们这样做。协议需要做的就是确保只接受具有工作证明的有效块。
+
+
+公平协议模型也可以在闪电网络的许多不同方面找到：
+
+
+* 质押通道的人确保在发布质押交易之前签署了退款交易。
+
+
+* 每当通道切换到新状态时，旧状态会被“撤销”，以确保如果有人尝试广播它，他们就会失去全部余额并受到惩罚。
+
+
+* 转发付款的人，如果他们将资金转发出去，他们可以得到退款，也可以通过他们之前的节点获得付款。
+
+
+我们一次又一次地看到这种模式：公平结果的获得不依赖任何权威机构的强制执行。 它们是奖励公平和惩罚作弊的协议的自然结果，这是一种通过自身利益最大化来做结果导向的公平协议。
+
+
+比特币和闪电网络都是公平协议的实现。 那么为什么我们需要闪电网络呢？ 比特币还不够吗？
+
+
+=== 闪电网络的初衷
+
+
+((("Lightning Network (generally)","motivation for", id="ix_01_introduction-asciidoc3", range="startofrange")))比特币是一个在全球复制的公共分类账上记录交易的系统。 每台参与的计算机都可以查看、验证和存储每笔交易。可以想象，这会产生大量数据并且难以扩展。
+
+
+随着比特币和交易需求的增长，每个区块中的交易数量不断增加，直到最终达到区块大小限制。一旦块“满了”，多余的交易就会在队列中等待。 许多用户会增加他们愿意为下一个区块的交易购买空间而支付的费用。
+
+
+如果需求继续超过网络容量，则越来越多的用户交易等待未确认。 费用竞争也增加了每笔交易的成本，使得许多小额交易（例如微交易）在需求特别高的时期完全不经济。
+
+
+为了解决这个问题，我们可以增加块大小限制，为更多交易创造空间。 区块空间“供应”的增加将导致交易费用的价格均衡降低。
+
+
+然而，增加区块大小会将成本转移到节点运营商身上，并要求他们花费更多资源来验证和存储区块链。 因为区块链是八卦协议，所以每个节点都需要知道和验证网络上发生的每一笔交易。 此外，一旦经过验证，每个事务和块都必须传播到节点的“邻居”，从而增加带宽需求。 因此，块大小越大，每个单独节点的带宽、处理和存储需求就越大。 以这种方式增加交易容量具有通过减少节点和节点运营商的数量来集中系统的不良效果。 由于节点运营商没有对运行节点进行补偿，如果节点运行成本非常高，那么只有少数资金充足的节点运营商会继续运行节点。
+
+
+==== 区块链的可扩展性
+
+
+((("blockchain","scaling", id="ix_01_introduction-asciidoc4", range="startofrange")))((("Lightning Network (generally)","scaling blockchains", id="ix_01_introduction-asciidoc5", range="startofrange")))正如一些数字所显示的那样，增加块大小或减少块时间相对于网络中心化的副作用是严重的。
+
+
+让我们假设比特币的使用量不断增长，以至于网络必须每秒处理 40,000 笔交易，这是 Visa 网络在高峰使用期间的大致交易处理水平。
+
+
+假设每个交易平均 250 字节，这将导致每秒 10 兆字节 (MBps) 或每秒 80 兆比特 (Mbps) 的数据流能够接收所有交易。这不包括将交易信息转发给其他对等方的流量开销。虽然在高速光纤和5G移动速度的背景下，10MBps似乎并不极端，但它可以有效地将无法满足此要求的任何人排除在运行节点之外，尤其是在高性能互联网无法负担或无法广泛使用的国家/地区 .
+
+
+用户对他们的带宽还有许多其他需求，不能指望仅仅为了接收交易而花费这么多。
+
+
+此外，在本地存储这些信息将导致每天864GB。这大约是1TB的数据，或硬盘驱动器的大小。
+
+
+每秒验证 40,000 个椭圆曲线数字签名算法 (ECDSA) 签名也几乎不可行(参阅  https://bitcoin.stackexchange.com/questions/95339/how-many-bitcoin-transactions-can-be-verified-per-second[这篇关于 StackExchange 的文章]），如果没有非常昂贵的硬件，比特币区块链的初始块下载（IBD）（同步和验证从创世块开始的所有内容）几乎是不可能的。
+
+
+虽然每秒 40,000 笔交易似乎很多，但它只能在高峰时段与传统的金融支付网络相提并论。 机器对机器支付、微交易和其他应用程序的创新可能会将需求推向更高的TPS。
+
+
+简而言之：你无法扩展区块链来以去中心化的方式验证所有的交易。
+
+
+_但是如果每个节点都不需要知道和验证每一笔交易呢？ 如果有一种方法可以在不失去比特币网络安全性的情况下进行可扩展的链下交易怎么办？_
+
+
+2015 年 2 月，Joseph Poon 和 Thaddeus Dryja 提出了比特币可扩展性问题的可能解决方案，并发表了“比特币闪电网络：可扩展的链下即时支付”。"footnote:[Joseph Poon and Thaddeus Dryja. "The Bitcoin Lightning Network: Scalable Off-Chain Instant Payments." DRAFT Version 0.5.9.2. January 14, 2016. https://lightning.network/lightning-network-paper.pdf[].]
+
+
+在（现已过时的）白皮书中，Poon 和 Dryja 估计，为了使比特币达到 Visa 在峰值时每秒处理的 47,000 笔交易，它需要 8 GB 块。
+这将使除了大型企业和工业级运营之外的任何人都无法运行节点。
+结果将是一个只有少数用户可以实际验证账本状态的网络。
+比特币依靠用户自己验证账本，而不明确信任第三方，以保持去中心化。
+将用户从正在运行的节点中定价会迫使普通用户信任第三方来发现账本的状态，最终破坏比特币的信任模型。
+
+
+
+闪电网络提出了一个新的网络，即二层。用户可以在其中进行点对点支付，而无需为每次支付向比特币区块链发布交易。
+用户可以根据需要在闪电网络上多次相互支付，而无需创建额外的比特币交易或产生链上费用。
+他们最初只是利用比特币区块链将比特币加载到闪电网络上并“结算”，即从闪电网络中移除比特币。
+结果是更多的比特币支付可以在链下进行，只有初始加载和最终结算交易需要由比特币节点验证和存储。
+除了减轻节点负担外，闪电网络上的支付对用户来说更便宜，因为他们不需要支付区块链费用，对用户来说更私密，因为它们不会发布给网络的所有参与者，而且不会永久存储。
+
+
+
+虽然闪电网络最初是为比特币设计的，但它可以在任何满足一些基本技术要求的区块链上实施。 其他区块链，例如莱特币，已经支持闪电网络。 此外，其他几个区块链正在开发类似的第二层或“第二层”解决方案，以帮助它们扩展。
+
+
+=== 闪电网络的定义特征
+
+
+
+((("Lightning Network (generally)","defining features")))闪电网络是一个在比特币和其他区块链之上作为二层协议运行的网络。闪电网络支持快速、安全、私密、无需信任和无需许可的支付。以下是闪电网络的一些功能：
+
+
+ 
+ * 闪电网络的用户可以以低成本和实时的方式相互进行支付。
+ 
+
+ * 通过闪电网络交换价值的用户无需等待区块确认付款。
+ 
+
+ * 一旦闪电网络上的付款完成，通常在几秒钟内，它就是最终的，不能撤销。 与比特币交易一样，闪电网络上的付款只能由收款人退还。
+ 
+
+ * 链上比特币交易由网络中的所有节点广播和验证，而在闪电网络上路由的支付是在成对的节点之间传输的，并且对每个人都不可见，从而产生更大的隐私。
+ 
+
+ * 与比特币网络上的交易不同，闪电网络上的支付不需要永久存储。 因此，闪电网络使用的资源更少，因此更便宜。此属性还具有保护隐私的好处。
+ 
+
+ * 闪电网络使用洋葱路由，类似于洋葱路由 (Tor) 隐私网络使用的协议，因此即使参与路由支付的节点也只能直接知道其在支付路由中的前任和后继。
+ 
+
+* 当在比特币之上使用时，闪电网络使用真正的比特币，它始终由用户拥有（保管）和完全控制。 闪电不是一个单独的代币或硬币，它是比特币。
+
+=== 闪电网络用例、用户和他们的故事
+
+
+((("Lightning Network (generally)","use cases and users")))为了更好地了解闪电网络的实际工作原理以及人们使用它的原因，我们将关注一些用户及其故事。
+
+
+在我们的示例中，一些人已经使用过比特币，而另一些人对比特币网络完全陌生。 此处列出的每个人和他们的故事都说明了一个或多个特定用例。 我们将在本书中重新审视它们：
+
+
+
+消费者::
+Alice 是一位比特币用户，她希望为小额零售购买进行快速、安全、廉价和私密的支付。 她使用闪电网络用比特币购买咖啡。
+
+
+
+商户::
+Bob 拥有一家咖啡店“Bob's Cafe”。 链上比特币支付不会像一杯咖啡那样小额支付，因此他使用闪电网络几乎可以立即以低廉的费用接受比特币支付。
+
+
+
+软件服务商::
+Chan 是一位中国企业家，他销售与闪电网络相关的信息服务，以及比特币和其他加密货币。 Chan 通过闪电网络实施小额支付，在互联网上销售这些信息服务。 此外，Chan 实施了一项流动性提供者服务，在闪电网络上租用入站通道容量，每个租期收取少量比特币费用。
+
+
+
+游戏玩家::
+Dina 是来自俄罗斯的青少年游戏玩家。 她玩过许多不同的电脑游戏，但她最喜欢的是那些有基于真钱的“游戏内经济”的游戏。 在玩游戏时，她还通过购买和销售虚拟游戏内物品来赚钱。 闪电网络允许她为游戏内物品进行少量交易，并为完成任务赚取少量收入。
+
+
+
+=== 总结
+
+
+
+在本章中，我们讨论了比特币和闪电网络的基本概念：公平协议。
+
+
+
+
+我们研究了闪电网络的历史，也研究了比特币和其他基于区块链网络的二层扩展解决方案背后的动机。
+
+
+我们学习了基本术语，包括节点、支付渠道、链上交易和链下支付。
+
+
+
+最后，我们遇到了 Alice、Bob、Chan 和 Dina，我们将在本书的其余部分中一直关注他们。(((range="endofrange", startref="ix_01_introduction-asciidoc0"))) 在下一章中， 我们将与 Alice 见面，并在她选择闪电钱包并准备进行她的第一次闪电支付以从 Bob's Cafe 购买一杯咖啡时，了解她的思考过程。

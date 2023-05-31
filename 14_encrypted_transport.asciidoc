@@ -132,9 +132,9 @@ hear during a thunderstorm when very far away.
 
 ((("Lightning encrypted transport protocol","elements of", id="ix_14_encrypted_transport-asciidoc1", range="startofrange")))In this section we will break down the Lightning encrypted transport protocol and delve into the details of the cryptographic algorithms and protocol used to establish encrypted, authenticated, and integrity-assured communications between peers. Feel free to skip this section if you find this level of detail daunting.
 
-==== Noise_XK: Lightning Network's Noise Handshake
+==== Noise XK: Lightning Network's Noise Handshake
 
-((("Lightning encrypted transport protocol","Noise_XK")))((("Noise Protocol Framework","Noise_XK")))((("Noise_XK")))The Noise Protocol is extremely flexible in that it advertises several
+((("Lightning encrypted transport protocol","Noise XK")))((("Noise Protocol Framework","Noise XK")))((("Noise_XK")))The Noise Protocol is extremely flexible in that it advertises several
 handshakes, each with different security and privacy properties for a would-be
 protocol implementer to select from. A deep exploration of each of the
 handshakes and their various trade-offs is out of the scope of this chapter.
@@ -146,7 +146,20 @@ handshake. Instead, a clever series of Elliptic Curve Diffie–Hellman (ECDH) an
 message authentication code (MAC) checks are used to authenticate the
 responder.
 
+((("Lightning encrypted transport protocol","Noise XK")))((("Noise Protocol Framework","Noise XK")))((("Noise_XK")))噪声协议非常灵活，因为它通告了几个
+握手，每次握手都有不同的安全和隐私属性
+可供选择的协议实施者。深入探索每一个
+握手及其各种权衡超出了本章的范围。
+话虽如此，闪电网络使用一种特定的握手方式，称为
+`噪音_XK`。 ((("identity hiding")))这次握手提供的唯一属性是__identity hiding__：为了让一个节点发起与另一个节点的连接，它
+必须首先知道它的公钥。从机械上讲，这意味着公钥
+响应者的信息实际上从未在
+握手。相反，一系列巧妙的椭圆曲线 Diffie–Hellman (ECDH) 和
+消息验证代码 (MAC) 检查用于验证
+响应者。
+
 ==== Handshake Notation and Protocol Flow
+==== 握手符号和协议流程
 
 ((("handshake","notation and protocol flow")))((("Lightning encrypted transport protocol","handshake notation and protocol flow")))((("Noise_XK","handshake notation and protocol flow")))Each handshake typically consists of several steps. At each step some
 (possibly) encrypted material is sent to the opposite party, an ECDH (or
@@ -157,6 +170,15 @@ end of the handshake, two keys, `ck` and `k`, are produced which are used to
 encrypt messages (`k`) and rotate keys (`ck`) throughout the lifetime of
 the session.
 
+((("handshake","notation and protocol flow")))((("Lightning encrypted transport protocol","handshake notation and protocol flow")))((("Noise_XK","handshake notation and protocol flow")))每次握手通常由几个步骤组成。每一步都有一些
+（可能）加密材料被发送给对方，ECDH（或
+几个）被执行，握手的结果被“混合”成
+协议_抄本_。该成绩单用于验证
+协议并有助于阻止中间人攻击。在
+握手结束时，生成两个密钥，`ck` 和 `k`，用于
+在整个生命周期内加密消息（`k`）和轮换密钥（`ck`）
+会议。
+
 In the context of a handshake, `s` is usually a long-term static public key.
 In our case, the public key crypto system used is an elliptic curve one,
 instantiated with the `secp256k1` curve, which is used elsewhere in Bitcoin.
@@ -165,10 +187,14 @@ refer to a new ephemeral key. ECDH operations between two keys are notated as
 the concatenation of two keys. As an example, `ee` represents an ECDH operation
 between two ephemeral keys.
 
+
+在握手的上下文中，s 通常是一个长期静态公钥。在我们的例子中，使用的公钥加密系统是一个椭圆曲线系统，用 secp256k1 曲线实例化，它在比特币的其他地方使用。在整个握手过程中会生成几个临时密钥。我们使用 e 来指代一个新的临时密钥。两个密钥之间的 ECDH 操作表示为两个密钥的串联。例如，ee 表示两个临时密钥之间的 ECDH 操作。
+
 ==== High-Level Overview
+==== 高级概述
 
 ((("Lightning encrypted transport protocol","high-level overview")))((("Noise_XK","high-level overview")))Using the notation laid out earlier, we can succinctly describe the `Noise_XK`
-as pass:[<span class="keep-together">follows</span>]:
+as follows:
 ```
     Noise_XK(s, rs):
        <- rs
@@ -189,6 +215,17 @@ AEAD (authenticated encryption with associated data) is sent across the wire.
 information alongside a cipher text packet. In other domains, the AD may be a
 domain name, or plain-text portion of the packet.
 
+该协议从响应者静态密钥的“预传输”开始
+(`rs`) 给发起者。在执行握手之前，发起者要
+生成自己的静态密钥 (`s`)。在握手的每一步中，所有
+通过网络发送的材料和发送/使用的密钥是递增的
+散列成_handshake digest_，`h`。这个摘要永远不会通过
+握手期间连线，而是用作“关联数据”时
+AEAD（经过验证的关联数据加密）通过网络发送。
+((("AD (associated data)")))((("associated data (AD)")))_Associated data_ (AD) 允许加密协议验证附加信息
+信息以及密文数据包。在其他域中，AD 可能是
+域名或数据包的纯文本部分。
+
 The existence of `h` ensures that if a portion of a transmitted handshake
 message is replaced, then the other side will notice. At each step, a MAC
 digest is checked. If the MAC check succeeds, then the receiving party knows
@@ -196,47 +233,92 @@ that the handshake has been successful up until that point. Otherwise, if a MAC
 check ever fails, then the handshake process has failed, and the connection
 should be terminated.
 
+`h` 的存在确保如果传输的握手的一部分
+消息被替换，那么对方会注意到。每一步，MAC
+检查摘要。如果 MAC 检查成功，则接收方知道
+到那时握手已经成功。否则，如果 MAC
+检查失败，则握手过程失败，并且连接
+应该终止。
+
 The protocol also adds a new piece of data to each handshake message: a protocol
 version. The initial protocol version is `0`. At the time of writing, no new
 protocol versions have been created. As a result, if a peer receives a version
 other than `0`, then they should reject the handshake initiation attempt.
 
+该协议还为每个握手消息添加了一条新数据：一个协议
+版本。初始协议版本为“0”。在撰写本文时，没有新的
+协议版本已创建。结果，如果对等方收到一个版本
+不是“0”，那么他们应该拒绝握手发起尝试。
+
 As far as cryptographic primitives, SHA-256 is used as the hash function of
 choice, `secp256k1` as the elliptic curve, and `ChaChaPoly-130` as the AEAD
 (symmetric encryption) construction.
+
+就密码原语而言，SHA-256 用作哈希函数
+选择，`secp256k1` 作为椭圆曲线，`ChaChaPoly-130` 作为 AEAD
+（对称加密）构造。
 
 Each variant of the Noise Protocol has a unique ASCII string used to refer to it. To ensure that two parties are using the same protocol
 variant, the ASCII string is hashed into a digest, which is used to initialize
 the starting handshake state. In the context of the Lightning Network, the ASCII
 string describing the protocol is `Noise_XK_secp256k1_ChaChaPoly_SHA256`.
 
-==== Handshake in Three Acts
+噪声协议的每个变体都有一个唯一的 ASCII 字符串用于引用它。确保两方使用相同的协议
+变体，ASCII 字符串被散列成一个摘要，用于初始化
+起始握手状态。在闪电网络的背景下，ASCII
+描述协议的字符串是“Noise_XK_secp256k1_ChaChaPoly_SHA256”。
 
+==== Handshake in Three Acts
+==== 握手三幕
 ((("Lightning encrypted transport protocol","handshake in three acts", id="ix_14_encrypted_transport-asciidoc2", range="startofrange")))((("Noise_XK","handshake in three acts", id="ix_14_encrypted_transport-asciidoc3", range="startofrange")))The handshake portion can be separated into three distinct "acts."
 The entire handshake takes 1.5 round trips between the initiator and responder.
 At each act, a single message is sent between both parties. The handshake
 message is a fixed-size payload prefixed by the protocol version.
+((("Lightning encrypted transport protocol","handshake in three acts", id="ix_14_encrypted_transport-asciidoc2", range="startofrange")))((("Noise_XK","handshake in three acts", id="ix_14_encrypted_transport-asciidoc3", range="startofrange")))握手部分可以分为三个不同的“行为”。
+整个握手在发起者和响应者之间需要 1.5 次往返。
+在每个动作中，双方都会发送一条消息。握手
+消息是以协议版本为前缀的固定大小的有效负载。
 
 The Noise Protocol uses an object-oriented inspired notation to describe the
 protocol at each step. During setup of the handshake state, each side will
 initialize the following variables:
+噪声协议使用面向对象的启发符号来描述
+每一步的协议。在握手状态的设置过程中，每一方都会
+初始化以下变量：
 
 `ck`:: The _chaining key_. This value is the accumulated hash of all
    previous ECDH outputs. At the end of the handshake, `ck` is used to derive
    the encryption keys for Lightning messages.
-
+   
+`ck`:: _chaining key_。这个值是所有的累加哈希值
+   以前的 ECDH 输出。在握手结束时，使用`ck`导出
+   Lightning 消息的加密密钥。
+   
 `h`:: The _handshake hash_. This value is the accumulated hash of _all_
    handshake data that has been sent and received so far during the handshake
    process.
+
+`h`:: _handshake hash_。这个值是_all_的累加散列
+   握手期间到目前为止已发送和接收的握手数据
+   过程。
 
 `temp_k1`, `temp_k2`, `temp_k3`:: The _intermediate keys_. These are used to
    encrypt and decrypt the zero-length AEAD payloads at the end of each handshake
    message.
 
+`temp_k1`、`temp_k2`、`temp_k3`::_中间键_。这些是用来
+   在每次握手结束时加密和解密零长度 AEAD 有效载荷
+   信息。
+
  `e`:: A party's _ephemeral keypair_. For each session, a node must generate a
    new ephemeral key with strong cryptographic randomness.
 
+`e`:: 一方的_临时密钥对_。对于每个会话，节点必须生成一个
+   具有强加密随机性的新临时密钥。
+
 `s`:: A party's _static keypair_ (`ls` for local, `rs` for remote).
+
+`s`:: 一方的_静态密钥对_（`ls` 用于本地，`rs` 用于远程）。
 
 Given this handshake plus messaging session state, we'll then define a series of
 functions that will operate on the handshake and messaging state. When
@@ -244,6 +326,13 @@ describing the handshake protocol, we'll use these variables in a manner
 similar to pseudocode to reduce the verbosity of the explanation of
 each step in the protocol. We'll define the _functional_ primitives of the
 handshake as:
+
+鉴于此握手和消息传递会话状态，我们将定义一系列
+将对握手和消息传递状态进行操作的函数。什么时候
+描述握手协议，我们将以某种方式使用这些变量
+类似于伪代码以减少解释的冗长
+协议中的每一步。我们将定义的_functional_原语
+握手为：
 
 `ECDH(k, rk)`:: Performs an Elliptic Curve Diffie–Hellman operation using
     `k`, which is a valid `secp256k1` private key, and `rk`, which is a valid public key.
@@ -599,7 +688,7 @@ Where `len` obtains the length in bytes of the Lightning message.
         * The nonce `sn` must be incremented after this step.
     * A zero-length byte slice is to be passed as the AD (associated data).
 4. Finally, encrypt the message itself (`m`) using the same procedure used to
-    encrypt the length prefix. Let this encrypted ciphertext be known pass:[<span class="keep-together">as <code>c</code></span>].
+    encrypt the length prefix. Let this encrypted ciphertext be known as `c`.
 +
 The nonce `sn` must be incremented after this step.
 5. Send `lc || c` over the network buffer.
@@ -616,7 +705,7 @@ steps are completed:
     * A zero-length byte slice is to be passed as the AD (associated data).
     * The nonce `rn` must be incremented after this step.
 4. Read _exactly_ `l + 16` bytes from the network buffer, and let the bytes be
-    known pass:[<span class="keep-together">as <code>c</code></span>].
+    known as `c`.
 5. Decrypt `c` (using `ChaCha20-Poly1305`, `rn`, and `rk`) to obtain decrypted
     plain-text packet `p`.
 +

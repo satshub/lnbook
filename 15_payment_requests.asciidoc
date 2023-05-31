@@ -1,120 +1,84 @@
 [[invoices]]
-== Lightning Payment Requests
+== 闪电支付请求
 
-((("Lightning invoices", id="ix_15_payment_requests-asciidoc0", range="startofrange")))In this chapter we will look at _Lightning payment requests_, or as they are more commonly known, _Lightning invoices_.
 
-=== Invoices in the Lightning Protocol Suite
+((("Lightning invoices", id="ix_15_payment_requests-asciidoc0", range="startofrange")))在本章中，我们将了解 _闪电网络付款请求_，或者更广为人知的 _闪电网络发票_。
 
-((("Lightning invoices","Lightning Protocol suite and")))((("Lightning Network Protocol","Lightning invoices in")))_Payment requests_, aka _invoices_, are part of the payment layer and are shown in the upper left of <<LN_payment_request_highlight>>.
+
+=== 闪电协议套件中的发票
+
+
+
+((("Lightning invoices","Lightning Protocol suite and")))((("Lightning Network Protocol","Lightning invoices in")))_付款请求_，又名 _发票_，是付款层的一部分，显示在 <<LN_payment_request_highlight>> 的左上角。
 
 [[LN_payment_request_highlight]]
 .Payment requests in the Lightning protocol suite
 image::images/mtln_1501.png["Payment requests in the Lightning protocol suite"]
 
-=== Introduction
+=== 介绍
 
-As we've learned throughout the book, minimally two pieces of data are required
-to complete a Lightning payment: a payment hash and a destination. As
-SHA-256 is used in the Lightning Network to implement HTLCs, this information
-requires 32 bytes to communicate. Destinations, on the other hand, are
-simply the `secp256k1` public key of the node that wishes to receive a payment.
-The purpose of a payment request in the context of the Lightning Network is to
-communicate these two pieces of information from sender to receiver. The QR-code-friendly format for communicating the information required
-to complete a payment from receiver to sender is described in https://github.com/lightningnetwork/lightning-rfc/blob/master/11-payment-encoding.md[BOLT #11: Invoice Protocol for Lightning Payments]. In practice, more than just the
-payment hash and destination are communicated in a payment request to
-make the encoding more fully featured.
 
-=== Lightning Payment Requests Versus Bitcoin Addresses
+正如我们在整本书中了解到的那样，至少需要两条数据内容
+完成闪电支付：支付哈希和目标地址。
+SHA-256哈希在闪电网络中用于实现 HTLC，此信息
+需要 32 个字节来通信。 另一方面，目标地址是“secp256k1”公钥,用来标示收款方。
+闪电网络中支付请求的作用是
+将这两条信息从接收者传递给发送者。用于从接收者向发送者传递完成支付所需信息的QR码的友好格式在 https://github.com/lightningnetwork/lightning-rfc/blob/master/11-payment-encoding.md[BOLT #11：闪电支付的发票协议]中进行了描述。实际上，在支付请求中传递的不仅仅是支付哈希和目的地地址，还有其他信息，以使编码更加完整。
 
-((("Bitcoin addresses, Lightning invoices versus")))((("Lightning invoices","Bitcoin addresses versus")))A commonly asked question when people first encounter a Lightning Payment
-request is: why can't a normal static address format be used instead?
 
-To answer this question, you must first internalize how Lightning
-differs from base layer Bitcoin as a payment method. Compared to a Bitcoin
-address which may be used to make a potentially unbounded number of payments
-(though reusing a Bitcoin address may degrade one's privacy), a Lightning
-payment request should only ever be used _once_.  This is due to the fact that
-sending a payment to a Bitcoin address essentially uses a public key
-cryptosystem to "encode" the payment in a manner that only the true "owner" of
-that Bitcoin address can redeem it.
+=== 闪电网络支付请求 VS 比特币地址
 
-In contrast, to complete a Lightning payment, the recipient must
-reveal a "secret" to the entire payment route, including the sender. This can be
-interpreted as usage of a kind of domain-specific symmetric cryptography because
-the payment preimage is for practical purposes a nonce (number only used
-once). If the sender attempts to make another payment using that identical
-payment hash, then they risk losing funds because the payment may not actually be
-delivered to the destination. It's safe to assume that after a preimage has
-been revealed, all nodes in the path will keep it around forever, then rather
-than forward the HTLC to collect a routing fee if the payment is
-completed, they can simply settle the payment at that instance and gain the
-entire payment amount in return. As a result, it's unsafe to ever use a payment
-request more than once.
 
-New variants of the original Lightning payment request exist that allow the sender to reuse them as many times as they want. These variants flip the normal payment flow as the sender transmits a preimage within the encrypted onion payload to the receiver, who is the only
-one that is able to decrypt it and settle the payment. Alternatively, assuming
-a mechanism that allows a sender to typically request a new payment request
-from the receiver, then an interactive protocol can be used to allow a
-degree of payment request reuse.
+((("Bitcoin addresses, Lightning invoices versus")))((("Lightning invoices","Bitcoin addresses versus")))当人们第一次遇到闪电支付请求时，一个常见的问题是：为什么不能使用普通的静态地址格式？
 
-=== BOLT #11: Lightning Payment Request Serialization pass:[<span class="keep-together">and Interpretation</span>]
 
-((("BOLT (Basis of Lightning Technology) standards documents","Lightning payment request serialization/interpretation")))((("Lightning invoices","payment request serialization/interpretation")))In this section, we'll describe the mechanism used to encode the set of
-information required to complete a payment on the Lightning Network. As
-mentioned earlier, the payment hash and destination is the minimum amount of
-information required to complete a payment. However, in practice, more
-information such as timelock information, payment request expiration, and
-possibly an on-chain fallback address are also communicated. The full specification document is https://github.com/lightningnetwork/lightning-rfc/blob/master/11-payment-encoding.md[BOLT #11: Invoice Protocol for Lightning Payments].
+要回答这个问题，首先必须理解闪电网络与基本层的比特币支付方式的区别。与可能用于进行无限次支付的比特币地址（尽管重复使用比特币地址可能会降低隐私）相比，闪电支付请求应该只使用一次。这是因为将支付发送到比特币地址，实质上是使用公钥加密系统，以一种只有该比特币地址的真正“所有者”才能兑现取款的方式，“编码”了该支付。
 
-==== Payment Request Encoding in Practice
 
-((("Lightning invoices","payment request encoding in practice")))First, let's examine what a real payment request looks like in practice. The
-following is a valid payment request that could have been used to complete a
-payment on the mainnet Lightning Network at the time it was created:
+相比之下，为了完成闪电支付，接收者必须向整个支付路线（包括发送者）揭示一个“秘密”。这可以解释为一种特定领域的对称加密使用，因为支付原像在实现上，是一种nonce值（仅使用一次的数字）。如果发送者试图使用相同的支付哈希进行另一笔付款，则会冒着资金损失的风险，因为该支付实际上可能无法传递到接受者。可以安全地假设，一旦支付原像被揭示，路径中的所有节点都将永久保留它，然后在付款完成时，它们可以简单地结算该支付并获得全部付款金额的回报，而不是转发HTLC以收取路由费。因此，绝不能多次使用同一支付请求。
 
-----
-lnbc2500u1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5xysx
-xatsyp3k7enxv4jsxqzpuaztrnwngzn3kdzw5hydlzf03qdgm2hdq27cqv3agm2awhz5se903vruatf
-hq77w3ls4evs3ch9zw97j25emudupq63nyw24cg27h2rspfj9srp
-----
 
-==== The Human-Readable Prefix
+存在一些新的变体的原始闪电支付请求，允许发送者多次重复使用它们。这些变体调整了正常的支付流程，例如发送者通过加密洋葱协议内的原像，并将加密内容传输给接收者，只有接收者能够解密并结算支付。或者假设存在机制允许发送者，可以从接收者那里请求新的支付请求，那么可以使用交互式协议允许支付请求在一定程度上重复使用。
 
-((("human-readable prefixes")))((("Lightning invoices","human-readable prefix")))Looking at the string, we can tease out a portion that we can parse with our
-eyes, while the rest of it just looks like a random set of strings. The part
-that is somewhat parsable by a human is referred to as the _human-readable prefix_. It allows a human to quickly extract some relevant information from a
-payment request at a glance. In this case, we can see that this payment is for
-the mainnet instance of the Lightning Network (`lnbc`), and is requesting 2,500
-uBTC (microbitcoin), or 25,000,000 satoshis. The latter potion is referred
-to as the data portion and uses an extensible format to encode the
-information required to complete a payment.
 
-Each version of instance of the Lightning Network (mainnet, testnet, etc.) has
-its own human-readable prefix (see <<table1501>>). This allows client software and also humans to
-quickly determine if a payment request can be satisfied by their node or not.
+=== BOLT #11：闪电支付请求的序列化和交互
+
+((("BOLT (Basis of Lightning Technology) standards documents","Lightning payment request serialization/interpretation")))((("Lightning invoices","payment request serialization/interpretation"))) 本节中，我们将描述用于在闪电网络上完成付款所需的信息集编码机制。如前所述，付款哈希和目的地是完成付款所需的最少信息。然而，在实践中，还会传输更多的信息，例如时间锁信息、付款请求过期时间和可能的链下回退地址。完整的规范文件是 https://github.com/lightningnetwork/lightning-rfc/blob/master/11-payment-encoding.md[BOLT #11: Lightning Payments的发票协议]。
+
+
+==== 支付请求编码实践
+
+
+((("Lightning invoices","payment request encoding in practice")))首先，让我们看看实际上一个真实的支付请求是什么样子。以下是一个有效的支付请求，可以用于完成主网闪电网络上的支付，该支付请求是在创建时生成的：
+```
+lnbc2500u1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5xysxxatsyp3k7enxv4jsxqzpuaztrnwngzn3kdzw5hydlzf03qdgm2hdq27cqv3agm2awhz5se903vruatfhq77w3ls4evs3ch9zw97j25emudupq63nyw24cg27h2rspfj9srp
+```
+
+==== 可读性前缀
+
+((("human-readable prefixes")))((("Lightning invoices","human-readable prefix")))观察这个字符串，我们可以找出其中一部分可以用肉眼解析的内容，而其余部分看起来像是一组随机字符串。那部分可以被人类解析的内容被称为“可读性前缀”，它可以让人类在一眼看到支付请求时快速提取一些相关信息。在这种情况下，我们可以看到这笔付款是针对闪电网络的主网(lnbc)，并且请求的是2,500 uBTC（微比特币）或25,000,000 satoshis。后面的一部分被称为数据部分，使用可扩展的格式编码完成支付所需的信息。
+
+每个闪电网络实例（主网、测试网等）都有自己的可读性前缀（参见<<table1501>>），这允许客户端软件和人类快速确定是否可以通过他们的节点完成付款请求。
+
+
 
 [role="pagebreak-before less_space"]
 [[table1501]]
 .BOLT #11 network prefixes
 [options="header"]
 |=============================
-|Network       |BOLT #11 prefix
+|网络       |BOLT #11 前缀
 |mainnet       |`lnbc`
 |testnet       |`lntb`
 |simnet/regtest|`lnbcrt`
 |=============================
 
 
-The first portion of the human-readable prefix is a _compact_ expression of the
-amount of the payment request. The compact amount is encoded in two parts. First, an integer is used as the _base_ amount. This is then followed by a
-multiplier that allows us to specify distinct order of magnitude increases
-offset by the base amount. If we return to our initial example, then we can
-take the `2500u` portion and decrease it by a factor of 1,000 to instead use
-`2500m` or (2,500 mBTC).  As a rule of thumb, to ascertain the amount
-of an invoice at a glance, take the base factor and multiply it by the
-multiplier.
 
-A full list of the currently defined multipliers is given in <<table1502>>.
+
+人类可读前缀的第一部分是付款请求的金额的“紧凑表达式”。紧凑金额由两部分编码。第一部分是一个整数，用作基础金额，然后跟随一个乘数，允许我们指定偏移基础金额的不同数量级。如果我们回到最初的例子，我们可以将“2500u”部分减少1,000倍，改为使用“2500m”或（2,500 mBTC）。简而言之，要快速确定发票金额，请取基础因子并乘以乘数。
+
+当前定义的乘数的完整列表在<<table1502>>中给出。
 
 [[table1502]]
 .BOLT #11 amount multipliers
@@ -128,94 +92,65 @@ A full list of the currently defined multipliers is given in <<table1502>>.
 |==============================================
 
 
-==== bech32 and the Data Segment
+==== bech32和数据段
 
-((("bech32, Lightning invoices and")))((("Lightning invoices","bech32 and data segment")))If the "unreadable" portion looks familiar, then that's because it uses the
-very same encoding scheme as SegWit compatible Bitcoin addresses use today,
-namely bech32. Describing the bech32 encoding scheme is outside the scope
-of this chapter. In brief, it's a sophisticated way to encode short strings
-that has very good error correction as well as detection properties.
+((("bech32, Lightning invoices and")))((("Lightning invoices","bech32 and data segment")))如果“不可读”部分看起来很熟悉，那是因为它使用了与SegWit兼容且比特币系统正在使用的地址编码方案，即bech32。描述bech32编码方案超出了本章的范围，在此不再展开。简而言之，它是一种编码短字符串的复杂方法，具有非常好的纠错机制和检测性能。
 
-The data portion can be separated into three sections:
+数据部分可以分为三个部分：
 
-  * The timestamp
-  * Zero or more tagged key-value pairs
-  * The signature of the entire invoice
+* 时间戳
+* 零个或多个标记键值对
+* 整个发票的签名
 
-The timestamp is expressed in seconds since the year 1970, or the Unix Epoch. This
-timestamp allows the sender to gauge how old the invoice is, and as we'll see
-later, allows the receiver to force an invoice to only be valid for a period of
-time if they wish.
+时间戳表示自1970年以来的秒数，或Unix纪元。该时间戳允许发送者判断发票的年龄，并且正如我们稍后将看到的那样，允许接收者在必要时强制发票仅在一段时间内有效。
 
-Similar to the TLV format we learned about in <<tlv>>, the BOLT #11 invoice
-format uses a series of extensible key-value pairs to encode information
-needed to satisfy a payment. Because key-value pairs are used, it's easy to add
-new values in the future if a new payment type or additional
-requirement/functionality is introduced.
 
-Finally, a signature is included that covers the entire invoice signed by the
-destination of the payment. This signature allows the sender to verify that the
-payment request was indeed created by the destination of the payment. Unlike
-Bitcoin payment requests which aren't signed, this allows us to ensure that a
-particular entity signed the payment request. The signature itself is encoded
-using a recovery ID, which allows a more compact signature to be used that
-allows public key extraction. When verifying the signature, the recovery ID
-extracts the public key, then verifies that against the public key included in
-the invoice.
+与我们在 <<tlv>> 中了解的 TLV 格式类似，BOLT #11 发票格式使用一系列可扩展的键-值对来编码完成付款所需的信息。因为使用了键-值对，如果引入了新的付款类型或额外的需求和功能，将来很容易添加新的值。
 
-===== Tagged invoice fields
 
-((("Lightning invoices","tagged invoice fields")))The tagged invoice fields are encoded in the main body of the invoice. These
-fields represent different key-value pairs that express either additional
-information that may help complete the payment or information which is
-_required_ to complete the payment. Because a slight variant of bech32 is
-utilized, each of these fields are actually in the "base 5" domain.
+最后，支付请求中包括一个由支付接收方签署的覆盖整个请求的签名。此签名允许发送方验证支付请求确实是由支付方创建的。与未签署的比特币支付请求不同，这使我们能够确保特定实体签署了支付请求。签名本身使用recovery ID 进行编码，这允许使用更紧凑的签名，以便进行公钥提取。在验证签名时，recovery ID 提取公钥，然后与包括在发票中的公钥进行验证。
 
-A given tag field is comprised of three components:
 
-  * The `type` of the field (5 bits)
-  * The `length` of the data of the field (10 bits)
-  * The `data` itself, which is `length * 5 bytes` in size
+===== 发票字段标签
 
-A full list of all the currently defined tagged fields is given in <<table1503>>.
+((("Lightning invoices","tagged invoice fields")))发票字段标签被编码在发票的主体部分中。这些字段代表不同的键值对，用于表达可能有助于完成支付或是完成支付所需的 _必需_ 信息。因为使用了略微变体的bech32，所以每个标记字段实际上都处于“基数5”的域中。
+
+给定的标记字段由三个组成部分组成：
+
+* 字段的类型（5位）
+* 字段数据的长度（10位）
+* 数据本身，大小为length * 5字节
+
+所有当前定义的标记字段的完整列表见<<table1503>>。
+
 
 [[table1503]]
-.BOLT #11 tagged invoice fields
+.BOLT #11 发票字段标签
 [options="header"]
 |===
-|pass:[<span class="keep-together">Field tag</span>]|pass:[<span class="keep-together">Data length</span>]|Usage
-|`p`|`52`|The SHA-256 payment hash.
-|`s`|`52`|A 256-bit secret that increases the end-to-end privacy of a payment by mitigating probing by intermediate nodes.
-|`d`|Variable|The description, a short UTF-8 string of the purpose of the payment.
-|`n`|`53`|The public key of the destination node.
-|`h`|`52`|A hash that represents a description of the payment itself. This can be used to commit to a description that's over 639 bytes in length.
-|`x`|Variable|The expiry time, in seconds, of the payment. The default is 1 hour (3,600) if not specified.
-|`c`|Variable|The `min_cltv_expiry` to use for the final hop in the route. The default is 9 if not specified.
-|`f`|Variable|A fallback on-chain address to be used to complete the payment if the payment cannot be completed over the Lightning Network.
-|`r`|Variable|One or more entries that allow a receiver to give the sender additional ephemeral edges to complete the payment.
-|`9`|Variable|A set of 5-bit values that contain the feature bits that are required in order to complete the payment.
+|字段标签|数据长度|用途
+|p|52|SHA-256支付哈希值。
+|s|52|一个256位的密钥，通过减少中间节点的探测来增加端到端的隐私。
+|d|变量|支付行为的简短UTF-8字符串描述。
+|n|53|目标节点的公钥。
+|h|52|表示支付本身描述的哈希值。这可以用于提交长度超过639字节的描述。
+|x|变量|支付的到期时间，以秒为单位。如果未指定，默认为1小时（3,600）。
+|c|变量|在路由的最后一跳上使用的min_cltv_expiry。如果未指定，默认为9。
+|f|变量|如果无法在闪电网络上完成支付，则用于完成支付的链下回退地址。
+|r|变量|一个或多个条目，允许接收方为发送方提供额外的临时通道以完成支付。
+|9|变量|包含完成支付所需的功能位的一组5位值。
 |===
 
-The elements contained in the field `r` are commonly referred to as _routing hints_. They allow the receiver to communicate an extra set of edges that may
-help the sender complete their payment. The hints are usually used when the
-receiver has some/all private channels, and they wish to guide the sender into
-this "unmapped" portion of the channel graph. A routing hint encodes
-effectively the same information that a normal `channel_update` message does.
-The update is itself packed into a single value with the following fields:
 
- * The `pubkey` of the outgoing node in the edge (264 bits)
- * The `short_channel_id` of the "virtual" edge (64 bits)
- * The base fee (`fee_base_msat`) of the edge (32 bits)
- * The proportional fee (`fee_proportional_millionths`) (32 bits)
- * The CLTV expiry delta (`cltv_expiry_delta`) (16 bits)
+字段 r 中包含的元素通常被称为 路由提示。它们允许接收方增加一组额外的支付路径，这可能有助于发送方完成其付款。当接收方拥有一些或全部私有通道，并希望将发送方引导到这些私有通道网络的“未公开”部分时，通常使用这些提示信息。路由提示有效地编码了与正常的 channel_update 消息相同的信息。通道更新本身被打包到一个值中，具有以下字段：
 
-The final portion of the data segment is the set of feature bits that
-communicate to the sender the functionality needed to complete a
-payment. As an example, if a new payment type is added in the future that isn't
-backward compatible with the original payment type, then the receiver can set
-a _required_ feature bit to communicate that the payer needs to
-understand that feature to complete the payment.
+* 通道中的出站节点的 pubkey（264 位）
+* “虚拟”通道的 short_channel_id（64 位）
+* 通道的基础费用（fee_base_msat）（32 位）
+* 通道的比例费用（fee_proportional_millionths）（32 位）
+* CLTV 到期时间差（cltv_expiry_delta）（16 位）
+数据段的最后一部分是一组特征位，用于向发送方传达完成付款所需的功能。例如，如果将来添加了与原始付款类型不兼容的新付款类型，则接收方可以设置一个 必需的 特征位，以传达付款人需要了解该功能以完成付款。
 
-=== Conclusion
+=== 总结
 
-As we have seen, invoices are a lot more than just a request for an amount. They contain critical information about _how_ to make the payment, such as routing hints, the destination node's public key, ephemeral keys to increase security, and much more.(((range="endofrange", startref="ix_15_payment_requests-asciidoc0")))
+正如我们所看到的那样，发票不仅仅是一个请求支付的金额。它们包含了关于如何进行支付的重要信息，比如路由提示、目标节点的公钥、增加安全性的临时密钥以及许多其他信息。

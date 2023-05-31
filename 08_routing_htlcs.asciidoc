@@ -1,131 +1,158 @@
 [[routing]]
 == Routing on a Network of pass:[<span class="keep-together">Payment Channels</span>]
 
-((("routing", id="ix_08_routing_htlcs-asciidoc0", range="startofrange")))In this chapter we will finally unpack how payment channels can be connected to form a network of payment channels via a process called _routing_. Specifically, we will look at the first part of the routing layer, the "Atomic and trustless multihop contracts" protocol. This is highlighted by an outline in the protocol suite, shown in <<LN_protocol_routing_highlight>>.
+
+
+((("routing", id="ix_08_routing_htlcs-asciidoc0", range="startofrange")))在本章中，我们最终将揭示如何通过一种称为“路由”的过程将支付通道连接起来形成一个支付通道网络。具体而言，我们将研究路由层的第一部分，“原子且无需信任的多跳合约”协议。该协议在协议套件中的轮廓图中有所强调，如图<<LN_protocol_routing_highlight>>所示。
 
 [[LN_protocol_routing_highlight]]
 .Atomic payment routing in the Lightning protocol suite
 image::images/mtln_0801.png["Atomic payment routing in the Lightning protocol suite"]
 
-=== Routing a Payment
 
-((("routing","routing a payment")))In this section we will examine routing from the perspective of Dina, a gamer who receives donations from her fans while she streams her game sessions.
 
-The innovation of routed payment channels allows Dina to receive tips without maintaining a separate channel with every one of her fans who want to tip her.
-As long as there exists a path of well-funded channels from that viewer to Dina, she will be able to receive payment from that fan.
+=== 路由一笔支付
 
-In <<dina_routing_diagram>> we see a possible network layout created by various payment channels between Lightning nodes. Everyone in this diagram can send Dina a payment by constructing a path. Imagine that Fan 4 wants to send Dina a payment. Do you see the path that could allow that to happen? Fan 4 could route a payment to Dina via Fan 3, Bob, and Chan. Similarly, Alice could route a payment to Dina via Bob and Chan.
+((("routing","routing a payment")))在本节中，我们将从Dina的角度来审视路由，Dina是一位游戏玩家，她在直播游戏过程中收到粉丝的捐款。
+
+
+路由付款通道的创新使得Dina可以接收小费，而不必维护与想要向她打小费的每个粉丝单独通道。只要存在一条来自那个观众到 Dina 的 资金充足的通道路径，她就能够从该粉丝接收到付款。
+
+在《dina_routing_diagram》中，我们看到了由各种闪电节点之间的支付通道创建的可能网络布局。此图中的每个人都可以通过构建路径向Dina发送付款。想象一下Fan 4想向Dina发送一笔付款。你能看到可能实现这一点的路径吗？Fan 4可以通过Fan 3、Bob和Chan向Dina路由一笔付款。同样，Alice可以通过Bob和Chan向Dina路由一笔付款。
 
 [[dina_routing_diagram]]
 .Fans connected (in)directly to Dina on the Lightning Network
 image::images/mtln_0802.png["Fans connected (in)directly to Dina on the Lightning Network"]
 
-((("routing nodes")))The nodes along the path from the fan to Dina are intermediaries called _routing nodes_ in the context of routing a payment. There is no functional difference between the routing nodes and the nodes operated by Dina's fans. Any Lightning node is capable of routing payments across its payment channels.
 
-Importantly, the routing nodes are unable to steal the funds while routing a payment from a fan to Dina.
-Furthermore, routing nodes cannot lose money while participating in the routing process.
-Routing nodes can charge a routing fee for acting as an intermediary, although they don't have to and may choose to route payments for free.
+((("routing nodes")))在从Fan到Dina的路径上，中介节点被称为“路由节点”，这是在进行付款路由的上下文中的术语。在路由节点和Dina的粉丝操作的节点之间没有功能差异。任何闪电节点都可以通过其支付通道路由付款。
 
-Another important detail is that due to the use of onion routing, intermediary nodes are only explicitly aware of the one node preceding them and the one node following them in the route.
-They will not necessarily know who is the sender and recipient of the payment.
-This enables fans to use intermediary nodes to pay Dina, without leaking private information and without risking theft.
 
-This process of connecting a series of payment channels with end-to-end security, and the incentive structure for nodes to _forward_ payments, is one of the key innovations of the Lightning Network.
+重要的是，路由节点在将付款从粉丝路由到Dina时无法窃取资金。此外，在参与路由过程中，路由节点不会亏损资金。路由节点可以收取路由费用作为中介，尽管他们不必这样做，也可以选择免费路由付款。
 
-In this chapter, we'll dive into the mechanism of routing in the Lightning Network, detailing the precise manner in which payments flow through the network. First, we will clarify the concept of routing and compare it to that of pathfinding, because these are often confused and used interchangeably. Next, we will construct the fairness protocol: an atomic, trustless, multihop protocol used to route payments. To demonstrate how this fairness protocol works, we will be using a physical equivalent of transferring gold coins between four people. Finally, we will look at the atomic, trustless, multihop protocol implementation currently used in the Lightning Network, which is called a hash time-locked contract (HTLC).
 
-=== Routing Versus Pathfinding
+另一个重要的细节是，由于使用了洋葱路由，中介节点仅明确知道它们前面和后面的一个节点。它们不一定知道付款的发送者和接收者是谁。这使得粉丝可以使用中介节点向Dina付款，而不会泄露私人信息并且不会有被盗风险。
 
-((("pathfinding","routing versus")))((("routing","pathfinding versus")))It's important to note that we separate the concept of _routing_ from the concept of _pathfinding_. These two concepts are often confused, and the term _routing_ is often used to describe both concepts. Let's remove the ambiguity before we proceed any further.
 
-Pathfinding, which is covered in <<path_finding>>, is the process of finding and choosing a contiguous path made of payment channels that connects sender A to recipient B. The sender of a payment does the pathfinding by examining the _channel graph_ that they have assembled from channel announcements gossiped by other nodes.
+将一系列具有端到端安全性的支付通道连接起来，并为节点提供转发支付的激励结构，是闪电网络的关键创新之一。
 
-Routing refers to the series of interactions across the network that attempt to forward a payment from some point A to another point B, across the path previously selected by pathfinding. Routing is the active process of sending a payment on a path, which involves the cooperation of all the intermediary nodes along that path.
 
-An important rule of thumb is that it's possible for a _path_ to exist between Alice and Bob (perhaps even more than one), yet there may not be an active _route_ on which to send the payment. One example is the scenario in which all the nodes connecting Alice and Bob are currently offline. In this example, one can examine the channel graph and connect a series of payment channels from Alice to Bob, hence a _path_ exists. However, because the intermediary nodes are offline, the payment cannot be sent and so no _route_ exists.
+在本章中，我们将深入探讨闪电网络中的路由机制，详细说明付款如何在网络中流动的精确方式。首先，我们将澄清路由的概念，并将其与路径查找进行比较，因为这些经常混淆并可互换使用。接下来，我们将构建公平性协议：一种原子、无信任、多跳协议，用于路由支付。为了演示这个公平性协议是如何工作的，我们将使用一个将金币在四个人之间转移的物理等价物。最后，我们将查看当前在闪电网络中使用的原子、无信任、多跳协议实现，这被称为哈希时锁合同（HTLC）。
 
-=== Creating a Network of Payment Channels
+=== 路由和寻路
 
-((("routing","creating a network of payment channels")))Before we dive into the concept of an atomic trustless multihop payment, let's work through an example.
-Let's return to Alice who, in previous chapters, purchased a coffee from Bob with whom she has an open channel.
-Now Alice is watching a live stream from Dina, the gamer, and wants to send Dina a tip of 50,000 satoshis via the Lightning Network. But Alice has no direct channel with Dina. What can Alice do?
 
-Alice could open a direct channel with Dina; however, that would require liquidity and on-chain fees which could be more than the value of the tip itself. Instead, Alice can use her existing open channels to send a tip to Dina _without_ the need to open a channel directly with Dina. This is possible, as long as there exists some path of channels from Alice to Dina with sufficient capacity to route the tip.
+((("pathfinding","routing versus")))((("routing","pathfinding versus")))需要注意的是，我们将“路由”概念与“路径查找”概念分开。这两个概念经常混淆，术语“路由”经常用来描述这两个概念。在我们进一步进行之前，让我们消除这种歧义。
 
-As you can see in <<routing_network>>, Alice has an open channel with Bob, the coffee shop owner. Bob, in turn, has an open channel with the software developer Chan who helps him with the point of sale system he uses in his coffee shop. Chan is also the owner of a large software company which develops the game that Dina plays, and they already have an open channel which Dina uses to pay for the game's license and in-game items.
+
+<<path_finding>>中介绍的是路径查找过程，它是通过查找和选择由支付通道组成的连续路径，并将发送方A连接到接收方B。支付的发送方通过检查其他节点通过广播的通道公告所组成的“通道图”来进行路径查找。
+
+
+而“路由”是指在网络中尝试将支付从某一点A转发到另一点B的一系列交互过程，沿着路径，这个路径是之前由路径查找选择的。路由是在路径上发送付款的活动过程，涉及沿该路径的所有中间节点的合作。
+
+
+一个重要的经验法则是：Alice和Bob之间可能存在一条或多条“路径”，但可能没有活动的“路由”可用于发送支付。一个例子是所有连接Alice和Bob的节点目前都处于离线状态的情况。在这种情况下，可以查看通道图并连接一系列从Alice到Bob的支付通道，因此存在一条“路径”。但由于中间节点离线，支付无法发送，因此没有“路由”可用。
+
+=== 构建支付通道网络
+
+
+((("routing","creating a network of payment channels")))在我们深入介绍原子无信任多跳支付的概念之前，让我们通过一个例子来说明。
+让我们回到之前章节中的Alice，她从Bob那里购买了一杯咖啡，与Bob有一条开放的支付通道。
+现在Alice正在观看游戏玩家Dina的直播，想通过闪电网络向Dina发送一笔50,000聪的小费。但是Alice没有与Dina直接连接的支付通道。那么Alice应该怎么做？
+
+
+Alice可以与Dina直接打开一个支付通道，但这需要支付一定的费用并占用流动性，而这些费用可能比小费本身的价值还要高。因此，Alice可以使用她已有的支付通道，将小费发送给Dina，而不需要直接与Dina打开一个支付通道。只要存在一条从Alice到Dina的支付通道路径，并且该路径的容量足以传输这笔小费，这种方式是可行的。
+
+
+正如您在 <<routing_network>> 中所看到的，Alice 与咖啡店老板 Bob 拥有一个开放通道。反过来，Bob 与软件开发人员 Chan 拥有一个开放通道，Chan 帮助他管理咖啡店的销售点系统。Chan 也是一家开发 Dina 所玩游戏的大型软件公司的所有者，他们已经拥有一个 Dina 用于支付游戏许可证和游戏内物品的开放通道。
 
 [[routing_network]]
 .A network of payment channels between Alice and Dina
 image::images/mtln_0803.png["A network of payment channels between Alice and Dina"]
 
-It's possible to trace a _path_ from Alice to Dina that uses Bob and Chan as intermediary routing nodes.
-Alice can then craft a _route_ from this outlined path and use it to send a tip of a few thousand satoshis to Dina, with the payment being _forwarded_ by Bob and Chan.
-Essentially, Alice will pay Bob, who will pay Chan, who will pay Dina. No direct channel from Alice to Dina is required.
 
-The main challenge is to do this in a way that prevents Bob and Chan from stealing the money that Alice wants delivered to Dina.
+有可能找到一条从Alice到Dina的路径，使用Bob和Chan作为中介路由节点。然后，Alice可以根据这个路径制定一个“路由”，并使用它向Dina发送几千个聪的小费，由Bob和Chan进行“转发”。实质上，Alice会先支付给Bob，然后由Bob支付给Chan，最后由Chan支付给Dina。不需要建立Alice和Dina之间的直接通道。
 
-=== A Physical Example of "Routing"
 
-((("routing","real-world physical example", id="ix_08_routing_htlcs-asciidoc1", range="startofrange")))To understand how the Lightning Network protects the payment while being routed, we can compare it to an example of routing physical payments with gold coins in the real world.
+主要的挑战是以一种方式完成这个过程，防止Bob和Chan窃取Alice想要发给Dina的钱。
 
-Assume Alice wants to give 10 gold coins to Dina, but does not have direct access to Dina. However, Alice knows Bob, who knows Chan, who knows Dina, so she decides to ask Bob and Chan for help. This is shown in <<alice_dina_routing_1>>.
+==== 一个现实世界的路由案例
+
+
+为了理解闪电网络在路由支付时如何保护支付，我们可以将其与现实世界中使用金币路由物理支付的例子进行比较。
+
+
+假设 Alice 想给 Dina 10 枚金币，但是没有直接接触到 Dina。然而，Alice 认识 Bob，Bob 又认识 Chan，而 Chan 则认识 Dina，因此 Alice 决定向 Bob 和 Chan 寻求帮助。这在 <<alice_dina_routing_1>> 中显示。
 
 [[alice_dina_routing_1]]
 .Alice wants to pay Dina 10 gold coins
 image::images/mtln_0804.png[]
 
-Alice can pay Bob to pay Chan to pay Dina, but how does she make sure that Bob or Chan don't run off with the coins after receiving them?
-In the physical world, contracts could be used for safely carrying out a series of payments.
 
-Alice could negotiate a contract with Bob, which reads:
+在物理世界中，可以使用合约来安全地进行一系列的支付。那么在比特币闪电网络中，如何确保Bob或Chan在收到比特币之后不会跑路呢？
 
-____
-_I, Alice, will give you, Bob, 10 gold coins if you pass them on to Chan._
-____
 
-While this contract is nice in the abstract, in the real world, Alice runs the risk that Bob might breach the contract and hope not to get caught.
-Even if Bob is caught and prosecuted, Alice faces the risk that he might be bankrupt and be unable to return her 10 gold coins.
-Assuming these issues are magically solved, it's still unclear how to leverage such a contract to achieve our desired outcome: getting the coins delivered to Dina.
+Alice 可以与 Bob 协商一份合同，其内容可以是：
 
-Let's improve our contract to incorporate these considerations:
 
-____
-_I, Alice, will reimburse you, Bob, with 10 gold coins if you can prove to me (for example, via a receipt) that you have delivered 10 gold coins to Chan._
-____
 
-You might ask yourself why should Bob sign such a contract.
-He has to pay Chan but ultimately gets nothing out of the exchange, and he runs the risk that Alice might not reimburse him. Bob could offer Chan a similar contract to pay Dina, but similarly Chan has no reason to accept it either.
+----
+我，Alice，会给你Bob，10个金币，如果你把它们传递给Chan
+----
 
-Even putting aside the risk, Bob and Chan must _already_ have 10 gold coins to send; otherwise, they wouldn't be able to participate in the contract.
 
-Thus Bob and Chan face both risk and opportunity cost for agreeing to this contract, and they would need to be compensated to accept it.
+虽然这份合同在理论上看起来不错，但在现实世界中，Alice面临着Bob可能违反合同但希望不被发现的风险。即使Bob被抓起来并被起诉，Alice仍然面临着他可能破产无力归还她的10个金币的风险。假设这些问题被奇迹般地解决了，如何利用这样的合同来实现我们想要的结果——将硬币交付给Dina仍然不清楚。
 
-Alice can then make this attractive to both Bob and Chan by offering them fees of one gold coin each, if they transmit her payment to Dina.
+
+让我们改进一下我们的合约以考虑这些问题：
+
+----
+我，Alice，若你能向我证明（例如通过收据等方式）你已向Chan付款10枚金币，则会返还给你10枚金币作为报销。
+----
+
+
+你可能会问为什么Bob要签署这样的合同。他需要向Chan支付金币，但最终却得不到任何东西，而且他面临着Alice可能不会赔偿他的风险。Bob可以向Dina提供类似的合同向她支付金币，但同样，Chan也没有接受这个合同的理由。
+
+
+即使忽略风险，Bob和Chan必须已经拥有10枚金币才能发送; 否则，他们就无法参与这个合同。
+
+
+因此，Bob和Chan为同意这个合同既面临风险，也面临机会成本，并且他们需要得到补偿才能接受它。
+
+
+
+然后，Alice可以通过向Bob和Chan提供每个人一枚金币的费用，使这个合同对Bob和Chan都有吸引力，只要他们向Dina传递她的付款。
 
 The contract would then read:
 
-____
-_I, Alice, will reimburse you, Bob, with 12 gold coins if you can prove to me (for example, via a receipt) that you have delivered 11 gold coins to Chan._
-____
 
-Alice now promises Bob 12 gold coins. There are 10 to be delivered to Dina and 2 for the fees. She promises 12 to Bob if he can prove that he has forwarded 11 to Chan.
-The difference of one gold coin is the fee that Bob will earn for helping out with this particular payment. In <<alice_dina_routing_2>> we see how this arrangement would get 10 gold coins to Dina via Bob and Chan.
+
+----
+我，Alice，若你能向我证明（例如通过收据等方式）你已向Chan付款11枚金币，则会返还给你12枚金币作为报销。
+----
+
+
+现在，Alice承诺向Bob提供12枚金币。其中10枚金币将被发送给Dina，2枚金币用于支付费用。如果Bob能够证明他已向Chan转发了11枚金币，则Alice向Bob提供12枚金币。其中1枚金币是Bob在此次交易中赚取的费用。在<<alice_dina_routing_2>>中，我们可以看到Bob和Chan如何将10枚金币发送到Dina。
 
 [[alice_dina_routing_2]]
 .Alice pays Bob, Bob pays Chan, Chan pays Dina
 image::images/mtln_0805.png[]
 
-Because there is still the issue of trust and the risk that either Alice or Bob won't honor the contract, all parties decide to use an escrow service.
-At the start of the exchange, Alice could "lock up" these 12 gold coins in escrow that will only be paid to Bob once he proves that he's paid 11 gold coins to Chan.
 
-This escrow service is an idealized one, which does not introduce other risks (e.g., counterparty risk). Later we will see how we can replace the escrow with a Bitcoin smart contract. Let's assume for now that everyone trusts this escrow service.
+因为仍然存在信任问题和Alice或Bob不愿意遵守合同的风险，所有各方决定使用一个第三方托管服务。在交易开始时，Alice可以将这12枚金币“锁定”在托管服务中，只有Bob向Dina证明支付了11枚金币后，这些金币才会转移给Bob。
 
-In the Lightning Network, the receipt (proof of payment) could take the form of a secret that only Dina knows.
-In practice, this secret would be a random number that is large enough to prevent others from guessing it (typically a _very, very_ large number, encoded using 256 bits!).
 
-Dina generates this secret value +R+ from a random number generator.
+这个托管服务是一个理想化的服务，不会引入其他风险（例如，对手方风险）。稍后我们将看到如何用比特币智能合约替换托管服务。暂时先假设每个人都信任这个托管服务。
 
-The secret could then be committed to the contract by including the SHA-256 hash of the secret in the contract itself, as follows:
+
+在闪电网络中，支付的收据（即支付的证明）可以采取只有Dina知道的秘密形式。实际上，这个秘密将是一个足够大的随机数，以防止其他人猜测它（通常是一个非常非常大的数字，使用256位进行编码！）。
+
+
+
+Dina使用随机数生成器生成此秘密值+R+。
+
+
+然后，将该秘密提交到合同中，通过在合同本身中包含该秘密的SHA-256散列值来实现，如下所示：
 
 ++++
 <ul class="simplelist">
@@ -133,200 +160,256 @@ The secret could then be committed to the contract by including the SHA-256 hash
 </ul>
 ++++
 
-((("payment hash")))((("payment secret (preimage)")))((("preimage (payment secret)")))We call this hash of the payment's secret the _payment hash_.
-The secret that "unlocks" the payment is called the _payment secret_.
 
-For now, we keep things simple and assume that Dina's secret is simply the text line: `Dinas secret`. This secret message is called the _payment secret_ or _payment preimage_.
+((("payment hash")))((("payment secret (preimage)")))((("preimage (payment secret)")))们将此支付秘密的哈希值称为_payment hash_。解锁付款的秘密称为_payment secret_
 
-To "commit" to this secret, Dina computes the SHA-256 hash, which when encoded in hexadecimal, can be displayed as follows:
 
-----
-0575965b3b44be51e8057d551c4016d83cb1fba9ea8d6e986447ba33fe69f6b3
-----
 
-To facilitate Alice's payment, Dina will create the payment secret and the payment hash, and send the payment hash to Alice. In <<alice_dina_routing_3>> we see that Dina sends the payment hash to Alice via some external channel (dashed line), such as an email or text message.
+现在，我们保持简单，假设Dina的秘密只是文本行：Dina's secret。这个秘密消息称为 _支付秘密_ 或 _支付原像_。
+
+
+
+为了"提交"这个秘密，Dina计算SHA-256散列值，当以十六进制编码时，可以显示为以下内容：`0575965b3b44be51e8057d551c4016d83cb1fba9ea8d6e986447ba33fe69f6b3`
+
+
+为了方便Alice的付款，Dina将创建支付秘密和支付哈希，并向Alice发送支付哈希。在<<alice_dina_routing_3>>中，我们看到Dina通过某些外部方式（例如电子邮件或短信）向Alice发送了支付哈希。
 
 [[alice_dina_routing_3]]
 .Dina sends the hashed secret to Alice
 image::images/mtln_0806.png["Dina sends the hashed secret to Alice"]
 
-Alice doesn't know the secret, but she can rewrite her contract to use the hash of the secret as a proof of payment:
 
-____
-_I, Alice, will reimburse you, Bob, with 12 gold coins if you can show me a valid message that hashes to:`057596`....
-You can acquire this message by setting up a similar contract with Chan who has to set up a similar contract with Dina.
-To assure you that you will be reimbursed, I will provide the 12 gold coins to a trusted escrow before you set up your next contract._
-____
+Alice不知道秘密，但是她可以重写她的合同，以将支付秘密的哈希值作为付款的证明：
 
-This new contract now protects Alice from Bob not forwarding to Chan, protects Bob from not being reimbursed by Alice, and ensures that there will be proof that Dina was ultimately paid via the hash of Dina's secret.
 
-After Bob and Alice agree to the contract, and Bob receives the message from the escrow that Alice has deposited the 12 gold coins, Bob can now negotiate a similar contract with Chan.
+----
+我，Alice，若你能向我展示一条有效的消息，其中包含哈希值为057596...。你可以通过设置与Chan类似的合同，同时Chan与Dina设置类似的合同来获得这条消息。为了向你保证你将获得赔偿，我将在你设置你的下一个合同之前提供这12枚金币给可信托管服务。
+----
 
-Note that since Bob is taking a service fee of 1 coin, he will only forward 11 gold coins to Chan once Chan shows proof that he has paid Dina.
-Similarly, Chan will also demand a fee and will expect to receive 11 gold coins once he has proved that he has paid Dina the promised 10 gold coins.
 
-Bob's contract with Chan will read:
+这个新合同现在保护Alice，以免Bob未向Chan转发付款，保护Bob不会被Alice拒绝赔偿，并确保有证据表明Dina最终通过Dina秘密的哈希值得到了付款。
 
-____
-_I, Bob, will reimburse you, Chan, with 11 gold coins if you can show me a valid message that hashes to:`057596`....
-You can acquire this message by setting up a similar contract with Dina.
-To assure you that you will be reimbursed, I will provide the 11 gold coins to a trusted escrow before you set up your next contract._
-____
 
-Once Chan gets the message from the escrow that Bob has deposited the 11 gold coins, Chan sets up a similar contract with Dina:
+在Bob和Alice同意合同后，Bob收到了从托管服务中得到的来自Alice已经存入12枚金币的消息，现在Bob可以与Chan协商一个类似的合同。
 
-____
-_I, Chan, will reimburse you, Dina, with 10 gold coins if you can show me a valid message that hashes to:`057596`....
-To assure you that you will be reimbursed after revealing the secret, I will provide the 10 gold coins to a trusted escrow._
-____
 
-Everything is now in place.
-Alice has a contract with Bob and has placed 12 gold coins in escrow.
-Bob has a contract with Chan and has placed 11 gold coins in escrow.
-Chan has a contract with Dina and has placed 10 gold coins in escrow.
-It is now up to Dina to reveal the secret, which is the preimage to the hash she has established as proof of payment.
+请注意，由于Bob正在收取1枚硬币的服务费，因此他只有在Chan展示证明已经向Dina支付后，才会向Chan转发11枚金币。同样地，Chan也将收取服务费，他希望在证明他已经向Dina支付了承诺的10枚金币后，最终收到11枚金币。
 
-Dina now sends +Dinas secret+ to Chan.
 
-Chan checks that +Dinas secret+ hashes to +057596+.... Chan now has proof of payment and so instructs the escrow service to release the 10 gold coins to Dina.
+Bob和Chan之间的合同如下：
+----
+我，Bob，若你能向我展示一条有效的消息，其中包含哈希值为057596...。你可以通过设置与Dina类似的合同来获得这条消息。为了向你保证你将获得赔偿，我将在你设置你的下一个合同之前提供这11枚金币给可信托管服务。
+----
 
-Chan now provides the secret to Bob. Bob checks it and instructs the escrow service to release the 11 gold coins to Chan.
 
-Bob now provides the secret to Alice.
-Alice checks it and instructs the escrow to release 12 gold coins to Bob.
+一旦Chan从托管服务那里得到了来自Bob存入11枚金币的消息，Chan会与Dina设置类似的合同：
 
-All the contracts are now settled.
-Alice has paid a total of 12 gold coins, 1 of which was received by Bob, 1 of which was received by Chan, and 10 of which were received by Dina.
-With a chain of contracts like this in place, Bob and Chan could not run away with the money because they deposited it in escrow first.
+----
+我，Chan，若你能向我展示一条有效的消息，其中包含哈希值为057596...，我将向你赔偿10枚金币。为了向你保证你将在揭示秘密后获得赔偿，我将在可信托管服务中存入这10枚金币。
+----
 
-However, one issue still remains.
-If Dina refused to release her secret preimage, then Chan, Bob, and Alice would all have their coins stuck in escrow but wouldn't be reimbursed.
-And similarly if anyone else along the chain failed to pass on the secret, the same thing would happen.
-So while no one can steal money from Alice, everyone would still have their money stuck in escrow permanently.
+现在一切都准备就绪了。
+Alice与Bob签订了合同，将12枚金币放进托管服务。
+Bob与Chan签订了合同，将11枚金币放进托管服务。
+Chan与Dina签订了合同，将10枚金币放进托管服务。
+现在轮到Dina展示秘密了，这个秘密是她用来作为支付证明的哈希的预影像。
 
-Luckily, this can be resolved by adding a deadline to the contract.
 
-We could amend the contract so that if it is not fulfilled by a certain deadline, then the contract expires and the escrow service returns the money to the person who made the original deposit.
-We call this deadline a _timelock_.
+Dina现在发送 +Dinas secret+给Chan
 
-The deposit is locked with the escrow service for a certain amount of time and is eventually released even if no proof of payment was provided.
 
-To factor this in, the contract between Alice and Bob is once again amended with a new clause:
 
-____
-_Bob has 24 hours to show the secret after the contract was signed.
-If Bob does not provide the secret by this time, Alice's deposit will be refunded by the escrow service and the contract becomes invalid._
-____
+Chan检查了Dina的秘密，可以得到为057596...的hash值。现在，Chan有支付证据，因此指示托管服务将10个金币释放给Dina。
 
-Bob, of course, now has to make sure he receives the proof of payment within 24 hours.
-Even if he successfully pays Chan, if he receives the proof of payment later than 24 hours, he will not be reimbursed. To remove that risk, Bob must give Chan an even shorter deadline.
 
-In turn, Bob will alter his contract with Chan as follows:
 
-____
-_Chan has 22 hours to show the secret after the contract was signed.
-If he does not provide the secret by this time, Bob's deposit will be refunded by the escrow service and the contract becomes invalid._
-____
+现在，Chan向Bob提供了这个秘密。Bob检查了秘密并指示托管服务将11个金币释放给Chan。
 
-As you might have guessed, Chan will also alter his contract with Dina:
 
-____
-_Dina has 20 hours to show the secret after the contract was signed.
-If she does not provide the secret by this time, Chan's deposit will be refunded by the escrow service and the contract becomes invalid._
-____
+接着，Bob向Alice提供了这个秘密。Alice检查了秘密，并指示托管服务将12个金币释放给Bob。
 
-With such a chain of contracts we can ensure that, after 24 hours, the payment will successfully go from Alice to Bob to Chan to Dina, or it will fail and everyone will be refunded.
-Either the contract fails or succeeds, there's no middle ground.
 
-In the context of the Lightning Network, we call this "all or nothing" property _atomicity_.
+所有的合同现在都已经完成了。
+Alice一共支付了12个金币，其中一个金币被Bob收到、一个金币被Chan收到、另外10个金币被Dina收到。
+有了这样一个合同链，Bob和Chan是无法拿走这些钱的，因为他们首先将钱存在了托管服务中。
 
-As long as the escrow is trustworthy and faithfully performs its duty, no party will have their coins stolen in the process.
 
-The precondition to this _route_ working at all is that all parties in the path have enough money to satisfy the required series of deposits.
+然而，仍然存在一个问题。
+如果Dina拒绝公开她的秘密原像，那么Chan、Bob和Alice都会将他们的金币困在托管服务中，且无法取回。如果沿着合同链的任何其他人未能传递秘密，也会发生同样的事情。因此，虽然没有人能从Alice那里窃取钱，但每个人的钱仍将面临永久困在托管服务中的风险。
 
-While this seems like a minor detail, we will see later in this chapter that this requirement is actually one of the more difficult issues for LN nodes.
-It becomes progressively more difficult as the size of the payment increases.
-Furthermore, the parties cannot use their money while it is locked in escrow.
 
-Thus, users forwarding payments face an opportunity cost for locking the money, which is ultimately reimbursed through routing fees, as we saw in the preceding example.
+幸运的是，可以通过向合同添加截止日期来解决这个问题。
 
-Now that we've seen a physical payment routing example, we will see how this can be implemented on the Bitcoin blockchain, without any need for third-party escrow. To do this we will be setting up the contracts between the participants using Bitcoin Script. We replace the third-party escrow with _smart contracts_ that implement a fairness protocol. Let's break that concept down and implement it!(((range="endofrange", startref="ix_08_routing_htlcs-asciidoc1")))
 
-=== Fairness Protocol
+我们可以修改合同，使得如果在特定的截止日期之前未达成协议，那么该合同便过期，托管服务将把钱退回给最初存款人。我们称这个截止日期为“时间锁”。
 
-((("fairness protocol","routing and")))((("routing","fairness protocol")))As we saw in the first chapter of this book, the innovation of Bitcoin is the ability to use cryptographic primitives to implement a fairness protocol that substitutes trust in third parties (intermediaries) with a trusted protocol.
 
-In our gold coin example, we needed an escrow service to prevent any one of the parties from reneging on their obligations. The innovation of cryptographic fairness protocols allows us to replace the escrow service with a protocol.
+存款被锁定在托管服务中，一段时间后会被释放，即使没有提供支付证明。
 
-((("fairness protocol","properties")))The properties of the fairness protocol we want to create are:
 
-Trustless operation:: The participants in a routed payment do not need to trust each other, or any intermediary or third party. Instead, they trust the protocol to protect them from cheating.
+为了解决这个问题，Alice和Bob之间的合同再次被修改，添加了一个新条款：
 
-Atomicity:: Either the payment is fully executed, or it fails and everyone is refunded. There is no possibility of an intermediary collecting a routed payment and not forwarding it to the next hop. Thus, the intermediaries can't cheat or steal.
 
-Multihop:: The security of the system extends end to end for payments routed through multiple payment channels, just as it is for a payment between the two ends of a single payment channel.
+----
+Bob必须在合同签署后的24小时内显示秘密。如果Bob在此期限内未提供秘密，则托管服务将退还Alice的存款，并使合同失效。
+----
 
-An optional, additional property is the ability to split payments into multiple parts while maintaining atomicity for the entire payment. These are called _multipart payments_ (_MPP_) and are explored further in <<mpp>>.
 
-==== Implementing Atomic Trustless Multihop Payments
+当然，Bob现在必须确保在24小时内收到支付证明。即使他成功地支付给了Chan，如果他在24小时之后才收到支付证明，他将得不到补偿。为了消除这种风险，Bob必须给Chan更短的期限。
 
-((("fairness protocol","implementing atomic trustless multihop payments")))((("routing","implementing atomic trustless multihop payments")))Bitcoin Script is flexible enough that there are dozens of ways to implement a fairness protocol that has the properties of atomicity, trustless operation, and multihop security. Choosing a specific implementation is dependent on certain trade-offs among privacy, efficiency, and complexity.
 
-((("hash time-locked contracts (HTLCs)","fairness protocol")))The fairness protocol for routing used in the Lightning Network today is called a hash time-locked contract (HTLC). HTLCs use a hash preimage as the secret that unlocks a payment, as we saw in the gold coin example in this chapter. The recipient of a payment generates a random secret number and calculates its hash. The hash becomes the condition of payment, and once the secret is revealed, all the participants can redeem their incoming payments. HTLCs offer atomicity, trustless operation, and multihop security.
 
-((("Point Time-Locked Contract (PTLC)")))((("PTLC (Point Time-Locked Contract)")))Another proposed mechanism for implementing routing is a _Point Time-Locked Contract_ (_PTLC_). PTLCs also achieve atomicity, trustless operation, and multihop security, but do so with increased efficiency and better privacy.  Efficient implementation of PTLCs depends on a new digital signature algorithm called _Schnorr signatures_, which is expected to be activated in Bitcoin in 2021.
+因此，Bob将修改与Chan的合同，如下所示：
 
-=== Revisiting the Tipping Example
 
-((("routing","real-world physical example")))Let's revisit our example from the first part of this chapter. Alice wants to tip Dina with a Lightning payment. Let's say Alice wants to send Dina 50,000 satoshis as a tip.
 
-For Alice to pay Dina, Alice will need Dina's node to generate a Lightning invoice. We will discuss this in more detail in <<invoices>>. For now, let's assume that Dina has a website that can produce a Lightning invoice for tips.
+----
+Chan必须在合同签署后的22小时内显示秘密。如果他在此期限内未提供秘密，则托管服务将退还Bob的存款，并使合同失效。
+----
+
+
+正如你可能已经猜到的那样，Chan将修改与Dina的合同，如下所示:
+
+
+----
+Dina必须在合同签署后的20小时内显示秘密。如果她在此期限内未提供秘密，则托管服务将退还Chan的存款，并使合同失效。
+----
+
+
+有了这样一系列的合同，我们可以确保在24小时之后，支付将成功地从Alice到Bob，再到Chan，最后到Dina，或者支付将失败，每个人都将得到退款。合同要么成功，要么失败，没有中间地带。
+
+在闪电网络的背景下，我们将这种“全有或全无”的属性称为“原子性（atomicity）”
+
+
+
+只要托管服务是值得信赖的，忠实地履行它的职责，没有一方的钱币在这个过程中会被盗取。
+
+
+这种路由成功的前提条件是，路径中的所有参与方都有足够的钱来满足所需的一系列存款。
+
+
+虽然这似乎是一个小问题，但我们将在本章的后面看到，这个要求实际上是LN节点中比较困难的问题之一。随着支付规模的增加，这个问题变得越来越困难。此外，在钱款被锁定在托管服务中的时候，参与者无法使用自己的钱。
+
+
+因此，转发支付的用户将面临机会成本来锁定资金，这将通过路由费用最终得到补偿，正如我们在前面的例子中看到的那样。
+
+
+现在我们已经看到了实际的物理支付路由示例，我们将看到如何在比特币区块链上实现这一点，而无需任何第三方托管。为了做到这一点，我们将使用Bitcoin Script设置参与者之间的合同。我们将用智能合约代替第三方托管，实现公正协议。让我们分解这个概念并实施它！(((range="endofrange", startref="ix_08_routing_htlcs-asciidoc1")))
+
+=== 公正协议
+
+
+
+((("fairness protocol","routing and")))((("routing","fairness protocol")))正如我们在本书第一章中所看到的，比特币的创新在于能够使用加密原语实现公正协议，从而将对第三方（中介）的信任替换为可信赖的协议。
+
+
+在我们的金币示例中，我们需要一个托管服务来防止任何一方违背其义务。而加密公正协议的创新在于，允许我们用协议来代替托管服务。
+
+
+((("fairness protocol","properties")))我们要创建的公正协议应当具有以下特性：
+
+
+去信任:: 路由支付的参与者不需要彼此信任，也不需要信任任何中介或第三方。相反，他们相信协议会保护他们免受欺诈。
+
+
+原子性:: 要么支付被完全执行，要么它失败并且每个人都得到退款。没有中介可能收取路由支付并不向下一个节点继续发送。因此，中介无法作弊或窃取钱财。
+
+
+
+多跳:: 系统的安全性对于通过多个支付通道路由的支付来说是端对端的，就像单个支付通道两端之间的支付一样。
+
+
+
+还有一个可选的附加属性，那就是将支付分成多个部分，同时对整个支付保持原子性的能力。这些被称为“多部分支付（MPP）”，并在《多部分支付（MPP）》中进一步探讨。
+
+
+==== 原子免信任的多跳支付实现
+
+
+((("fairness protocol","implementing atomic trustless multihop payments")))((("routing","implementing atomic trustless multihop payments")))Bitcoin Script非常灵活，有很多种实现公正协议的方法，这些协议具有原子性、去信任和多跳安全的特性。选择特定的实现取决于隐私、效率和复杂度之间的某些权衡。
+
+
+
+((("hash time-locked contracts (HTLCs)","fairness protocol")))目前在闪电网络中使用的路由公正协议称为散列时间锁合同（Hash Time-Locked Contract，HTLC）。HTLC使用哈希原像作为解锁支付的秘密，正如我们在本章中的金币例子中看到的那样。支付的接收者生成随机的秘密数字并计算它的哈希值。该哈希值成为支付的条件。一旦秘密公开，所有参与者都可以赎回他们的收入支付。HTLC提供了原子性、无信任操作和多跳安全性。
+
+
+
+((("Point Time-Locked Contract (PTLC)")))((("PTLC (Point Time-Locked Contract)")))另一种提出实现路由的机制是点时间锁定合约（PTLC）。PTLC也能够实现原子性、无信任操作和多跳安全，但是在效率和隐私方面更加高效。PTLC的高效实现取决于一种新的数字签名算法，称为Schnorr签名，预计将于2021年在比特币中激活。
+
+
+=== 回顾一下小费的例子
+
+
+((("routing","real-world physical example")))让我们回顾一下本章第一部分的例子。Alice想用闪电支付给Dina小费。假设Alice想要给Dina发送50,000 satoshi作为小费。
+
+
+
+为了让Alice支付Dina，Alice需要Dina的节点生成一个闪电发票。我们将在 <<invoices>> 章节中详细讨论这个过程。现在，假设Dina有一个可以为小费生成闪电发票的网站。
+
+
 
 [TIP]
 ====
-Lightning payments can be sent without an invoice using a feature called _keysend_, which we will discuss in more detail in <<keysend>>. For now, we will explain the simpler payment flow using an invoice.
+使用一种称为“Keysend”的功能可以在没有发票的情况下发送闪电支付，我们将在 <<keysend>> 章节中详细讨论这个功能。现在，我们将解释使用发票的较简单的支付流程。
 ====
 
-Alice visits Dina's site, enters the amount of 50,000 satoshis in a form, and in response, Dina's Lightning node generates a payment request for 50,000 satoshis in the form of a Lightning invoice. This interaction takes place over the web and outside the Lightning Network, as shown in <<alice_dina_invoice_1>>.
+
+Alice访问Dina的网站，填写一个表单输入50,000 satoshi的金额，然后Dina的闪电节点会生成一份50,000 satoshi的闪电发票，作为支付请求。这个交互过程在网络上发生，不在闪电网络内，如 <<alice_dina_invoice_1>> 所示。
 
 [[alice_dina_invoice_1]]
 .Alice requests an invoice from Dina's website
 image::images/mtln_0807.png["Alice requests an invoice from Dina's website"]
 
-As we saw in previous examples, we assume that Alice does not have a direct payment channel to Dina. Instead, Alice has a channel to Bob, Bob has a channel to Chan, and Chan has a channel to Dina. To pay Dina, Alice must find a path that connects her to Dina. We will discuss that step in more detail in <<path_finding>>. For now, let's assume that Alice is able to gather information about available channels and sees that there is a path from her to Dina, via Bob and Chan.
+
+
+正如我们在以前的例子中看到的那样，我们假设Alice没有直接的支付通道到Dina。相反，Alice拥有一个通道连接到Bob，Bob拥有一个通道连接到Chan，Chan拥有一个通道连接到Dina。为了支付Dina，Alice必须找到一条连接她和Dina的路径。我们将在 <<path_finding>> 章节中详细讨论这个步骤。现在，让我们假设Alice能够收集有关可用通道的信息，并且发现通过Bob和Chan有一条连接到Dina的路径。
+
+
 
 [NOTE]
 ====
-Remember how Bob and Chan might expect a small compensation for routing the payment through their nodes? Alice wants to pay Dina 50,000 satoshis, but as you will see in the following sections she will send Bob 50,200 satoshis. The extra 200 satoshis will pay Bob and Chan 100 satoshis each, as a routing fee.
+你还记得Bob和Chan可能会期望通过他们的节点路由支付而获得一些小费吗？Alice想支付给Dina 50,000 satoshi，但是在接下来的章节中，你会看到她将发送给Bob 50,200 satoshi。额外的200 satoshi将用于支付Bob和Chan的每个节点100 satoshi的路由费。
 ====
 
-Now, Alice's node can construct a Lightning payment. In the next few sections, we will see how Alice's node constructs an HTLC to pay Dina and how that HTLC is forwarded along the path from Alice to Dina.
 
 
-==== On-Chain Versus Off-Chain Settlement of HTLCs
+现在，Alice的节点可以构建一个闪电支付。在接下来的几个章节中，我们将看到Alice的节点如何构建一个哈希时间锁定合约（HTLC）来支付Dina，并且这个HTLC是如何沿着从Alice到Dina的路径转发的。
 
-((("hash time-locked contracts (HTLCs)","on-chain versus off-chain settlement of")))((("off-chain settlement, on-chain payment versus")))((("on-chain payment","off-chain settlement versus")))((("routing","on-chain versus off-chain settlement of HTLCs")))The purpose of the Lightning Network is to enable _off-chain_ transactions that are trusted just the same as on-chain transactions because no one can cheat. The reason no one can cheat is because at any time, any of the participants can take their off-chain transactions on-chain. Each off-chain transaction is ready to be submitted to the Bitcoin blockchain at any time. Thus, the Bitcoin blockchain acts as a dispute-resolution and final settlement mechanism if necessary.
+==== 基于HTLC的链上链下结算
 
-The mere fact that any transaction can be taken on-chain at any time is precisely the reason that all those transactions can be kept off-chain. If you know you have recourse, you can continue to cooperate with the other participants and avoid the need for on-chain settlement and extra fees.
 
-In all the examples that follow, we will assume that any of these transactions can be made on-chain at any time. The participants will choose to keep them off-chain, but there is no difference in the functionality of the system other than the higher fees and delay imposed by on-chain mining of the transactions. The example works the same if all the transactions are on-chain or off-chain.
+((("hash time-locked contracts (HTLCs)","on-chain versus off-chain settlement of")))((("off-chain settlement, on-chain payment versus")))((("on-chain payment","off-chain settlement versus")))((("routing","on-chain versus off-chain settlement of HTLCs")))闪电网络的目的是使离线交易与链上交易一样可信。这是因为没有人可以欺骗。之所以没有欺骗，是因为在任何时间，任何参与者都可以将它们的离线交易、暂存到链上进行。每个离线交易都随时准备好提交到比特币区块链。因此，比特币区块链如有必要可以起到争议解决和最终结算的机制。
+
+
+
+任何交易随时可以被传输到链上的这个事实，正是离线交易可以保持离线的原因。如果你知道你有保障，你可以继续与其他参与者合作，避免进行链上结算和支付额外的费用。
+
+
+在接下来的所有示例中，我们将假设这些交易中的任何一个都可以随时在链上执行。参与者将选择继续将它们保持在离线状态。除了因为链上挖矿交易而增加的高费用和延迟之外，该系统的功能没有任何差别。如果所有交易都在链上或离线上，该示例的工作方式是相同的。
 
 [[htlcs]]
-=== Hash Time-Locked Contracts
+=== 哈希时间锁合约
 
-((("hash time-locked contracts (HTLCs)","mechanism of operation", id="ix_08_routing_htlcs-asciidoc2", range="startofrange")))((("routing","hash time-locked contracts mechanism of operation", id="ix_08_routing_htlcs-asciidoc3", range="startofrange")))In this section we explain how HTLCs work.
+((("hash time-locked contracts (HTLCs)","mechanism of operation", id="ix_08_routing_htlcs-asciidoc2", range="startofrange")))((("routing","hash time-locked contracts mechanism of operation", id="ix_08_routing_htlcs-asciidoc3", range="startofrange")))在这一部分我们解释HTLC如何工作。
 
-The first part of an HTLC is the _hash_. This refers to the use of a cryptographic hash algorithm to commit to a randomly generated secret. Knowledge of the secret allows redemption of the payment. The cryptographic hash function guarantees that while it's infeasible for anyone to guess the secret preimage, it's easy for anyone to verify the hash, and there's only one possible preimage that resolves the payment condition.
+HTLC的第一部分是哈希（_hash_）。这指的是使用一个密码散列算法来承诺生成的随机密码。只有知道这个密码，才能完成支付。密码散列函数确保几乎不可能有任何人猜出这个密码的原像，但对于任何人来说，验证该哈希非常容易，并且只有一个可能的原像可以解决支付条件。
 
-In <<alice_dina_invoice_2>> we see Alice getting a Lightning invoice from Dina. Inside that invoice ((("payment hash")))Dina has encoded a _payment hash_, which is the cryptographic hash of a secret that Dina's node produced. ((("payment secret (preimage)")))((("preimage (payment secret)")))Dina's secret is called the _payment preimage_. The payment hash acts as an identifier that can be used to route the payment to Dina. The payment preimage acts as a receipt and proof of payment once the payment is complete.
+
+
+在<<alice_dina_invoice_2>>中，我们看到Alice从Dina那里获取了一份闪电发票。在该发票中，Dina已经编码一个_payment hash_。该_payment hash_ 是Dina节点生成的密码散列的结果。同时，Dina的秘密称为_payment secret(preimage)_ ，它是Dina掌握的用于解锁_payment hash_ 的随机密码。payment hash 充当着一个标识符，标示到Dina的支付路由。而_payment preimage_ 在支付结算时，则会充当着一份收据和付款的证明。
+
 
 [[alice_dina_invoice_2]]
 .Alice gets a payment hash from Dina
 image::images/mtln_0808.png["Alice gets a payment hash from Dina"]
 
-In the Lightning Network, Dina's payment preimage won't be a phrase like +Dinas secret+ but a random number generated by Dina's node. Let's call that random number _R_.
 
-Dina's node will calculate a cryptographic hash of _R_, such that:
+
+在闪电网络中，Dina的_paymentpreimage_ 不会像“+Dina'ssecret+”这样是一个短语，而是由Dina的节点生成的一个随机数。让我们称这个随机数为 _R_。
+
+
+
+Dina的节点将计算_R_ 的密码散列，使其如下：
 
 ++++
 <ul class="simplelist">
@@ -334,20 +417,25 @@ Dina's node will calculate a cryptographic hash of _R_, such that:
 </ul>
 ++++
 
-In this equation, _H_ is the hash, or _payment hash_ and _R_ is the secret or _payment preimage_.
 
-The use of a cryptographic hash function is one element that guarantees _trustless operation_. The payment intermediaries do not need to trust each other because they know that no one can guess the secret or fake it.
+在这个等式中，H 表示哈希或_payment hash_，R 表示秘密或 _payment preimage_。
+
+
+使用密码散列函数是保证无信任操作的一种元素。支付中间人不需要相互信任，因为它们知道没有人可以猜出这个密码散列的原像或伪造它。
 
 ==== HTLCs in Bitcoin Script
 
-((("Bitcoin script","HTLCs in")))((("hash time-locked contracts (HTLCs)","Bitcoin Script and")))In our gold coin example, Alice had a contract enforced by escrow like this:
 
-____
-_Alice will reimburse Bob with 12 gold coins if you can show a valid message that hashes to:_ +0575...f6b3+. _Bob has 24 hours to show the secret after the contract was signed. If Bob does not provide the secret by this time, Alice's deposit will be refunded by the escrow service and the contract becomes invalid._
-____
+((("Bitcoin script","HTLCs in")))((("hash time-locked contracts (HTLCs)","Bitcoin Script and")))在我们的金币示例中，Alice有一个由第三方托管实施的合约，就像这样：
+
+
+----
+如果Bob能够展示与“+0575...f6b3+”对应的有效消息（即原像），Alice将用12枚金币偿还Bob。在合约签署后的24小时内，如果Bob没能提供这个密码，Alice的存款将由第三方托管服务返还，并且合约将失效。
+----
+
 
 [role="pagebreak-before"]
-Let's see how we would implement this as an HTLC in Bitcoin Script. In <<received_htlc>> we see an HTLC Bitcoin Script as currently used in the Lightning Network. You can find this definition in https://github.com/lightningnetwork/lightning-rfc/blob/master/03-transactions.md#offered-htlc-outputs[BOLT #3, Transactions].
+让我们看看如何在比特币脚本中实现这个哈希时间锁定合约（HTLC）。在<<received_htlc>> 中，我们可以看到当前在闪电网络中使用的HTLC比特币脚本。你可以在 https://github.com/lightningnetwork/lightning-rfc/blob/master/03-transactions.md#offered-htlc-outputs[BOLT #3, Transactions] 中看到详细定义。
 
 [[received_htlc]]
 .HTLC implemented in Bitcoin Script (BOLT #3)
@@ -373,147 +461,196 @@ OP_ENDIF
 ----
 ====
 
-Wow, that looks complicated! Don't worry though, we will take it one step at a time and simplify it.
 
-The Bitcoin Script currently used in the Lightning Network is quite complex because it is optimized for on-chain space efficiency, which makes it very compact but difficult to read.
+哇，看起来很复杂！但是不要担心，我们将一步步进行简化。
 
-In the following sections, we will focus on the main elements of the script and present simplified scripts that are slightly different from what is actually used in Lightning.
 
-The main part of the HTLC is in line 10 of <<received_htlc>>. Let's build it up from scratch!
+目前在闪电网络中使用的比特币脚本非常复杂，因为它经过了针对链上空间效率的优化，这使得它非常紧凑但难以阅读。
 
-==== Payment Preimage and Hash Verification
 
-((("hash time-locked contracts (HTLCs)","payment preimage and hash verification")))((("hash verification")))((("payment secret (preimage)")))((("preimage (payment secret)")))The core of an HTLC is the hash, where payment can be made if the recipient knows the payment preimage. Alice locks the payment to a specific payment hash, and Bob has to present a payment preimage to claim the funds. The Bitcoin system can verify that Bob's payment preimage is correct by hashing it and comparing the result to the payment hash that Alice used to lock the funds.
+在接下来的章节中，我们将重点关注脚本的主要元素，并提供与实际使用的闪电网络略有不同。
 
-This part of an HTLC can be implemented in Bitcoin Script as follows:
 
+HTLC的主要部分在<<received_htlc>>的第10行中。让我们从头开始构建它！
+
+
+
+
+==== 支付原像和哈希验证
+
+
+((("hash time-locked contracts (HTLCs)","payment preimage and hash verification")))((("hash verification")))((("payment secret (preimage)")))((("preimage (payment secret)")))HTLC的核心是哈希函数，如果接收者知道支付原像，就可以进行付款。Alice将付款锁定到特定的支付哈希，并且Bob必须提供支付原像来索取这些资金。比特币系统可以通过对其进行哈希并将结果与Alice用于锁定资金的支付哈希进行比较，以验证Bob的支付原像是否正确。
+
+
+
+
+在比特币脚本中，HTLC的实现如下：
 ----
 OP_SHA256 <H> OP_EQUAL
 ----
 
-Alice can create a transaction output that pays, 50,200 satoshi with a locking script above, replacing `<H>` with the hash value +0575...f6b3+ provided by Dina. Then, Alice can sign this transaction and offer it to Bob:
+
+Alice可以创建一个交易输出，使用上面的锁定脚本支付 50，200 satoshi，并将<H>替换为由Dina提供的hash值+0575...f6b3+。然后，Alice可以签署此交易并向Bob提供它：
 
 .Alice's offers a 50,200 satoshi HTLC to Bob
 ----
 OP_SHA256 0575...f6b3 OP_EQUAL
 ----
 
-Bob can't spend this HTLC until he knows Dina's secret, so spending the HTLC is conditional on Bob's fulfillment of the payment all the way to Dina.
 
-Once Bob has Dina's secret, Bob can spend this output with an unlocking script containing the secret preimage value _R_.
+在Bob不知道Dina的秘密的情况下，他无法花费此HTLC，因此花费HTLC取决于Bob成功履行支付到Dina的义务。
 
-The unlocking script combined with the locking script would produce:
+
+一旦Bob获得Dina的秘密，Bob可以使用包含秘密原像值 _R_ 的解锁脚本来花费这个输出。
+
+
+解锁脚本与锁定脚本结合起来会产生以下结果： 
 
 ----
 <R> OP_SHA256 <H> OP_EQUAL
 ----
 
-The Bitcoin Script engine would evaluate this script as follows:
 
-1. +R+ is pushed to the stack.
-2. The `OP_SHA256` operator takes the value +R+ off the stack and hashes it, pushing the result +H~R~+ to the stack.
-3. +H+ is pushed to the stack.
-4. The `OP_EQUAL` operator compares +H+ and +H~R~+. If they are equal, the result is +TRUE+, the script is complete, and the payment is verified.
+比特币脚本引擎将按照以下方式执行此脚本：
+1. 操作数+R+被推到堆栈上。
+2. OP_SHA256操作符取出堆栈上的值+R+并对其进行哈希，将结果+HR+推到堆栈上。
+3. 操作数+HR+也被推到堆栈上。
+4. OP_EQUAL操作符比较+H+和+HR+。如果它们相等，则结果为+TRUE+，脚本完成，并且支付被验证。
 
-==== Extending HTLCs from Alice to Dina
 
-((("hash time-locked contracts (HTLCs)","extending across a network")))Alice will now extend the HTLC across the network so that it reaches Dina.
+==== 将HTLC从Alice扩展到Dina
 
-In <<alice_dina_htlc_1>>, we see the HTLC propagated across the network from Alice to Dina. Alice has given Bob an HTLC for 50,200 satoshi. Bob can now create an HTLC for 50,100 satoshi and give it to Chan.
 
-Bob knows that Chan can't redeem Bob's HTLC without broadcasting the secret, at which point Bob can also use the secret to redeem Alice's HTLC. This is a really important point because it ensures end-to-end _atomicity_ of the HTLC. To spend the HTLC, one needs to reveal the secret, which then makes it possible for others to spend their HTLC also. Either all the HTLCs are spendable, or none of the HTLCs are spendable: atomicity!
+((("hash time-locked contracts (HTLCs)","extending across a network")))现在，Alice将在整个网络中扩展HTLC以使其到达Dina。
 
-Because Alice's HTLC is 100 satoshi more than the HTLC Bob gave to Chan, Bob will earn 100 satoshi as a routing fee if this payment completes.
 
-Bob isn't taking a risk and isn't trusting Alice or Chan. Instead, Bob is trusting that a signed transaction together with the secret will be redeemable on the Bitcoin blockchain.
+
+在<<alice_dina_htlc_1>>中，我们可以看到HTLC从Alice传播到Dina的整个网络。Alice已经给出了一份HTLC，面额为50,200 satoshi。Bob现在可以创建一份面额为50,100 satoshi的HTLC并将其交给Chan。
+
+
+Bob 知道 如果Chan不广播秘密， Chan将无法兑现 Bob 的 HTLC；因此， Bob也可以使用Chan广播的该秘密来兑现 Alice 的 HTLC。这是非常重要的，因为它确保了 HTLC 的端到端原子性。要花费 HTLC，必须揭示秘密，然后其他人才能花费他们的 HTLC。要么所有的 HTLC 均可花费，要么所有的 HTLC 均不可花费：原子性！
+
+
+
+
+因为 Alice 的 HTLC 比 Bob 给 Chan 的 HTLC 多 100 satoshi，所以如果此支付完成，Bob 将获得 100 satoshi 的路由费。
+
+Bob 不承担风险，也不信任 Alice 或 Chan。相反，Bob 信任带有秘密的签名交易，这些签名交易可以保证Bob在比特币区块链上成功取款。
 
 [[alice_dina_htlc_1]]
 .Propagating the HTLC across the network
 image::images/mtln_0809.png["Propagating the HTLC across the network"]
 
-Similarly, Chan can extend a 50,000 HTLC to Dina. He isn't risking anything or trusting Bob or Dina. To redeem the HTLC, Dina would have to broadcast the secret, which Chan could use to redeem Bob's HTLC. Chan would also earn 100 satoshis as a routing fee.
 
-==== Back-Propagating the Secret
+同样地，Chan 可以向 Dina 扩展一份面额为 50,000 的 HTLC。他没有承担任何风险或信任 Bob 或 Dina。为兑现 HTLC，Dina 必须广播秘密，Chan可以使用该秘密兑现 Bob 的 HTLC。Chan 也将获得 100 satoshi 作为路由费。
 
-((("hash time-locked contracts (HTLCs)","back-propagating the secret", id="ix_08_routing_htlcs-asciidoc4", range="startofrange")))Once Dina receives a 50,000 HTLC from Chan, she can now get paid. Dina could simply commit this HTLC on-chain and spend it by revealing the secret in the spending transaction. Or, instead, Dina can update the channel balance with Chan by giving him the secret. There's no reason to incur a transaction fee and go on-chain. So, instead, Dina sends the secret to Chan, and they agree to update their channel balances to reflect a 50,000 satoshi Lightning payment to Dina. In <<alice_dina_htlc_redeem_1>> we see Dina giving the secret to Chan, thereby fulfilling the HTLC.
+==== 逆向传播秘密
+
+
+((("hash time-locked contracts (HTLCs)","back-propagating the secret", id="ix_08_routing_htlcs-asciidoc4", range="startofrange")))一旦 Dina 从 Chan 那里收到 50,000 satoshi 的 HTLC，她现在可以获得付款。Dina 可以简单地在区块链上提交该 HTLC，并通过在花费交易中揭示秘密来花费它。或者，Dina 可以通过向 Chan 提供该秘密更新通道余额，而无需支付交易费用并且不必上链。因此，Dina 向 Chan 发送秘密，他们同意更新其通道余额，以反映对 Dina 的 50,000 satoshi 的闪电支付。在<<alice_dina_htlc_redeem_1>>中，我们看到Dina将秘密交给Chan，从而兑现HTLC。
+
+
 
 [[alice_dina_htlc_redeem_1]]
 .Dina settles Chan's HTLC off-chain
 image::images/mtln_0810.png["Dina settles Chan's HTLC off-chain"]
 
-Notice that Dina's channel balance goes from 50,000 satoshi to 100,000 satoshi. Chan's channel balance is reduced from 200,000 satoshi to 150,000 satoshi. The channel capacity hasn't changed, but 50,000 has moved from Chan's side of the channel to Dina's side of the channel.
 
-Chan now has the secret and has paid Dina 50,000 satoshi. He can do this without any risk, because the secret allows Chan to redeem the 50,100 HTLC from Bob. Chan has the option to commit that HTLC on-chain and spend it by revealing the secret on the Bitcoin blockchain. But, like Dina, he'd rather avoid transaction fees. So instead, he sends the secret to Bob so they can update their channel balances to reflect a 50,100 satoshi Lightning payment from Bob to Chan. In <<alice_dina_htlc_redeem_2>> we see Chan sending the secret to Bob and receiving a payment in return.
+请注意，Dina 的通道余额从 50,000 satoshi 增加到 100,000 satoshi。 Chan 的通道余额从 200,000 satoshi 减少到 150,000 satoshi。通道容量并未更改，但是50,000已从通道的 Chan 侧移动到 Dina 的通道侧。
+
+
+现在，Chan拥有秘密并已向Dina支付了50,000 satoshi。他可以做到这一点而没有任何风险，因为秘密允许 Chan 兑现 Bob 的 50,100 HTLC。Chan可以将该 HTLC 提交到比特币区块链上，并通过揭示秘密来花费它。但是，与 Dina 一样，他想要避免交易费用。因此，他向Bob发送了秘密，以便他们可以更新其通道余额，以反映 Bob 向 Chan 的 50,100 satoshi 的闪电支付。在<<alice_dina_htlc_redeem_2>>中，我们看到Chan将秘密发送给Bob并收到支付作为回报。
 
 [[alice_dina_htlc_redeem_2]]
 .Chan settles Bob's HTLC off-chain
 image::images/mtln_0811.png["Chan settles Bob's HTLC off-chain"]
 
-Chan has paid Dina 50,000 satoshi, and received 50,100 satoshi from Bob. So Chan has 100 satoshi more in his channel balances, which he earned as a routing fee.
 
-Bob now has the secret too. He can use it to spend Alice's HTLC on-chain. Or, he can avoid transaction fees by settling the HTLC in the channel with Alice. In <<alice_dina_htlc_redeem_3>> we see that Bob sends the secret to Alice and they update the channel balance to reflect a 50,200 satoshi Lightning payment from Alice to Bob.
+Chan 向 Dina 支付了 50,000 satoshi，并从 Bob 收到 50,100 satoshi。因此，Chan 的通道余额增加了 100 satoshi，他将其作为路由费收入。
+
+
+Bob 现在也有该秘密。他可以使用它在比特币区块链上花费 Alice 的 HTLC，或者他可以通过与 Alice 在通道中结算 HTLC 来避免交易费用。在<<alice_dina_htlc_redeem_3>>中，我们可以看到 Bob 将秘密发送给 Alice，并将其通道余额更新以反映 Alice 向 Bob 的 50,200 satoshi 的闪电支付。
+
 
 [[alice_dina_htlc_redeem_3]]
 .Bob settles Alice's HTLC off-chain
 image::images/mtln_0812.png["Bob settles Alice's HTLC off-chain"]
 
-Bob has received 50,200 satoshi from Alice and paid 50,100 satoshi to Chan, so he has an extra 100 satoshi in his channel balances from routing fees.
 
-Alice receives the secret and has settled the 50,200  satoshi HTLC. The secret can be used as a _receipt_ to prove that Dina got paid for that specific payment hash.
+Bob 从 Alice 收到了 50,200 satoshi，并向 Chan 支付了 50,100 satoshi，因此他的通道余额增加了 100 satoshi，他将其作为路由费收入。
 
-The final channel balances reflect Alice's payment to Dina and the routing fees paid at each hop, as shown in <<alice_dina_htlc_redeem_4>>.(((range="endofrange", startref="ix_08_routing_htlcs-asciidoc4")))
+
+Alice 收到了秘密，并已结算了 50,200 satoshi 的 HTLC。该秘密可以用作收据，以证明 Dina 收到了特定的支付哈希的资金。
+
+
+最终的通道余额反映了 Alice 向 Dina 的支付和每个跳跃所支付的路由费，如<<alice_dina_htlc_redeem_4>>所示(((range="endofrange", startref="ix_08_routing_htlcs-asciidoc4")))。
 
 [[alice_dina_htlc_redeem_4]]
 .Channel balances after the payment
 image::images/mtln_0813.png["Channel balances after the payment"]
 
 [[preventing_theft]]
-==== Signature Binding: Preventing Theft of HTLCs
+==== 签名绑定: 阻止HTLC作恶
 
-((("hash time-locked contracts (HTLCs)","signature binding to prevent theft of", id="ix_08_routing_htlcs-asciidoc5", range="startofrange")))((("signature binding", id="ix_08_routing_htlcs-asciidoc6", range="startofrange")))There's a catch. Did you notice it?
 
-If Alice, Bob, and Chan create the HTLCs as shown in <<alice_dina_htlc_redeem_4>>, they face a small but not insignificant risk of loss. Any of those HTLCs can be redeemed (spent) by anyone who knows the secret. At first only Dina knows the secret. Dina is supposed to only spend the HTLC from Chan. But Dina could spend all three HTLCs at the same time, or even in a single spending transaction! After all, Dina knows the secret before anyone else. Similarly, once Chan knows the secret, he is only supposed to spend the HTLC offered by Bob. But what if Chan also spends Alice's offered HTLC?
+((("hash time-locked contracts (HTLCs)","signature binding to prevent theft of", id="ix_08_routing_htlcs-asciidoc5", range="startofrange")))((("signature binding", id="ix_08_routing_htlcs-asciidoc6", range="startofrange")))这里有一个问题吗？您是否注意到了它？
 
-This is not _trustless_! It fails the most important security feature. We need to fix this.
 
-The HTLC script must have an additional condition that binds each HTLC to a specific recipient. We do this by requiring a digital signature that matches the public key of each recipient, thereby preventing anyone else from spending that HTLC. Since only the designated recipient has the ability to produce a digital signature matching that public key, only the designated recipient can spend that HTLC.
+如果Alice、Bob和Chan创建了如<<alice_dina_htlc_redeem_4>>中所示的HTLC，他们将面临着一个微小但不可忽视的损失风险。任何人只要知道了密钥，就可以兑现（花费）这些HTLC中的任何一个。一开始只有Dina知道密钥，并且Dina应该只花费来自Chan的HTLC。但是，Dina可以同时花费这三个HTLC中的任意一个，甚至可以在单个花费交易中花费他们！毕竟，在其他人之前，Dina就已经知道了密钥。同样地，一旦Chan知道了密钥，他只应该兑现Bob提供的HTLC。但是，如果Chan也去兑现了Alice提供的HTLC呢？
 
-Let's look at the scripts again with this modification in mind. Alice's HTLC for Bob is modified to include Bob's public key and the +OP_CHECKSIG+ operator.
 
-Here's the modified HTLC script:
+这不是免信任的！它未能实现最重要的安全特性。我们需要修复这个问题。
+
+
+HTLC脚本必须具有将每个HTLC绑定到特定收款人的附加条件。我们通过要求与每个收款人的公钥匹配的数字签名来实现这一点，从而防止任何其他人花费该HTLC。由于只有指定的收款人有能力生成与该公钥匹配的数字签名，因此只有指定的收款人可以花费该HTLC。
+
+
+让我们看看在这种修改情况下的脚本。Alice针对Bob的HTLC被修改以包括Bob的公钥和+OP_CHECKSIG+操作符。
+
+
+以下是修改后的HTLC脚本:
 
 ----
 OP_SHA256 <H> OP_EQUALVERIFY <Bob's Pub> OP_CHECKSIG
 ----
 
+
+
 [TIP]
 ====
-Notice that we also changed +OP_EQUAL+ to +OP_EQUALVERIFY+. When an operator has the suffix +VERIFY+, it does not return +TRUE+ or +FALSE+ on the stack. Instead, it _halts_ execution and fails the script if the result is false and continues without any stack output if it is true.
+
+请注意，我们还将+OP_EQUAL+更改为+OP_EQUALVERIFY+。当一个操作符有后缀+VERIFY+时，它不会在堆栈上返回+TRUE+或+FALSE+。相反，如果结果为false，则它会停止执行并使脚本失败；如果结果为真，则在没有堆栈输出的情况下继续执行。
 ====
 
-To redeem this HTLC, Bob has to present an unlocking script that includes a signature from Bob's private key as well as the secret payment preimage, like this:
+
+为了兑现这个HTLC，Bob必须提出一个解锁脚本，其中包括来自Bob的私钥的签名，以及像这样的秘密支付预映像：
 
 ----
 <Bob's Signature> <R>
 ----
 
-The unlocking and locking scripts are combined and evaluated by the scripting engine, as follows:
+
+解锁和锁定脚本将被组合并由脚本引擎进行运行，如下所示：
 
 ----
 <Bob's Sig> <R> OP_SHA256 <H> OP_EQUALVERIFY <Bob's Pub> OP_CHECKSIG
 ----
 
-1. +<Bob's Sig>+ is pushed to the stack.
-2. +R+ is pushed to the stack.
-3. +OP_SHA256+ pops and hashes +R+ from the top of the stack and pushes +H~R~+ to the stack.
-4. +H+ is pushed to the stack.
-5. +OP_EQUALVERIFY+ pops +H+ and +H~R~+ and compares them. If they are not the same, execution halts. Otherwise, we continue without output to the stack.
-6. +<Bob's Pub>+ key is pushed to the stack.
-7. +OP_CHECKSIG+ pops +<Bob's Sig>+ and +<Bob's Pub>+ and verifies the signature. The result (`TRUE/FALSE`) is pushed to the stack.
 
-As you can see, this is slightly more complicated, but now we have fixed the HTLC and made sure only the intended recipient can spend it.(((range="endofrange", startref="ix_08_routing_htlcs-asciidoc6")))(((range="endofrange", startref="ix_08_routing_htlcs-asciidoc5")))
+1. +<Bob'sSig>+被推入堆栈。
+2. +R+被推入堆栈。
+3. +OP_SHA256+从堆栈顶部弹出并散列+R+，然后将+HR+推入堆栈。
+4. +H+被推入堆栈。
+5. +OP_EQUALVERIFY+从堆栈顶部弹出+H+和+HR+并进行比较。如果它们不相同，脚本的执行会停止。否则，我们将继续执行，但不会在堆栈上输出结果。
+6. +<Bob'sPub>+公钥被推入堆栈。
+7. +OP_CHECKSIG+从堆栈中弹出+<Bob'sSig>+和+<Bob'sPub>+并验证签名。结果（TRUE/FALSE）被推入堆栈。
 
-==== Hash Optimization
+
+
+正如您所看到的，这太过稍微有些复杂，但现在我们已经修复了HTLC，并确保只有预期的收件人可以花费它。(((range="endofrange", startref="ix_08_routing_htlcs-asciidoc6")))(((range="endofrange", startref="ix_08_routing_htlcs-asciidoc5")))
+
+
+==== 哈希优化
 
 ((("hash time-locked contracts (HTLCs)","hash optimization")))Let's look at the first part of the HTLC script so far:
 
@@ -521,21 +658,28 @@ As you can see, this is slightly more complicated, but now we have fixed the HTL
 OP_SHA256 <H> OP_EQUALVERIFY
 ----
 
-If we look at this in the preceding symbolic representation, it looks like the +OP_+ operators take up the most space. But that's not the case. Bitcoin Script is encoded in binary, with each operator representing one byte. Meanwhile, the +<H>+ value we use as a placeholder for the payment hash is a 32-byte (256-bit) value. You can find a listing of all the Bitcoin Script operators and their binary and hex encoding in https://en.bitcoin.it/wiki/Script[Bitcoin Wiki: Script], or in https://github.com/bitcoinbook/bitcoinbook/blob/develop/appdx-scriptops.asciidoc[Appendix D, "Transaction Script Language Operators, Constants, and Symbols," in _Mastering Bitcoin_].
 
-Represented in hexadecimal, our HTLC script would look like this:
+如果我们观察先前的符号表达，似乎+OP_+操作符占据了大部分空间。但事实并非如此。Bitcoin Script是以二进制编码的，每个操作符代表一个字节。同时，我们用作支付哈希值占位符的+<H>+值是一个32字节（256位）的值。您可以在 https://en.bitcoin.it/wiki/Script[Bitcoin Wiki：Script] 上找到所有Bitcoin Script操作符及其二进制和十六进制编码的列表，或者在《精通比特币》（Mastering Bitcoin）的附录D中找到《交易脚本语言操作符、常量和符号》。
+
+
+
+用16进制表达，我们的HTLC脚本如下所示：
 
 ----
 a8 0575965b3b44be51e8057d551c4016d83cb1fba9ea8d6e986447ba33fe69f6b3 88
 ----
 
-In hexadecimal encoding, +OP_SHA256+ is +a8+ and +OP_EQUALVERIFY+ is +88+. The total length of this script is 34 bytes, of which 32 bytes are the hash.
 
-As we've mentioned previously, any participant in the Lightning Network should be able to take an off-chain transaction they hold and put it on-chain if they need to enforce their claim to funds. To take a transaction on-chain, they'd have to pay transaction fees to the miners, and these fees are proportional to the size, in bytes, of the transaction.
+在十六进制编码中，+OP_SHA256+为+a8+，+OP_EQUALVERIFY+为+88+。这个脚本的总长度为34字节，其中32字节是哈希值。
 
-Therefore, we want to find ways to minimize the on-chain "weight" of transactions by optimizing the script as much as possible. One way to do that is to add another hash function on top of the SHA-256 algorithm, one that produces smaller hashes. The Bitcoin Script language provides the +OP_HASH160+ operator that "double hashes" a preimage: first the preimage is hashed with SHA-256, and then the resulting hash is hashed again with the RIPEMD160 hash algorithm. The hash resulting from RIPEMD160 is 160 bits or 20 bytes--much more compact. In Bitcoin Script this is a very common optimization that is used in many of the common address formats.
 
-So, let's use that optimization instead. Our SHA-256 hash is +057596...69f6b3+. Putting that through another round of hashing with RIPEMD160 gives us the result:
+正如我们先前提到过的，闪电网络中的任何参与者都应该能够将其持有的离线交易放在区块链上，以便在需要时执行他们对资金的索赔。要将交易放在区块链上，他们必须向矿工支付交易费用，这些费用与交易的字节大小成比例。
+
+
+因此，我们希望通过尽可能优化脚本的方式来最小化交易的区块链“重量”。一种方法是在SHA-256算法之上添加另一个哈希函数，产生更小的哈希值。Bitcoin Script语言提供了+OP_HASH160+操作符，它“双重散列”一个原像：首先，原像使用SHA-256进行散列，然后使用RIPEMD160哈希算法散列SHA-256产生的哈希值。从RIPEMD160得到的哈希值为160位或20字节，看起来更加紧凑。在Bitcoin Script中，这是一个非常常见的优化，被用在许多常见地址格式中。
+
+
+因此，我们使用这种优化方式。我们的SHA-256哈希值为+057596...69f6b3+。再对其进行一轮RIPEMD160哈希散列，得到以下结果：
 
 ----
 R = "Dinas secret"
@@ -545,24 +689,28 @@ H160 = RIPEMD160(H256)
 H160 = 9e017f6767971ed7cea17f98528d5f5c0ccb2c71
 ----
 
-Alice can calculate the RIPEMD160 hash of the payment hash that Dina provides and use the shorter hash in her HTLC, as can Bob and Chan!
+
+Alice可以计算Dina提供的支付哈希的RIPEMD160哈希，并在她的HTLC中使用较短的哈希值。Bob和Chan也可以这样做！
 
 [role="pagebreak-before"]
-The "optimized" HTLC script would look like this:
+“优化”的HTLC脚本将如下所示：
 
 ----
 OP_HASH160 <H160> OP_EQUALVERIFY
 ----
 
-Encoded in hex, this is:
 
+16进制编码如下:
 ----
 a9 9e017f6767971ed7cea17f98528d5f5c0ccb2c71 88
 ----
 
-Where +OP_HASH160+ is +a9+ and +OP_EQUALVERIFY+ is +88+. This script is only 22 bytes long! We've saved 12 bytes from every transaction that redeems an HTLC on-chain.
 
-With that optimization, you now see how we arrive at the HTLC script shown in line 10 of <<received_htlc>>:
+此处+OP_HASH160+为+a9+，+OP_EQUALVERIFY+为+88+。这个脚本只有22字节长！我们已经将每个HTLC的链上交易节省了12个字节。
+
+
+
+通过这种优化，您现在可以看到我们如何得到<<received_htlc>>中第10行所示的HTLC脚本：。
 
 ----
 ...
@@ -570,24 +718,33 @@ With that optimization, you now see how we arrive at the HTLC script shown in li
     OP_HASH160 <RIPEMD160(payment_hash)> OP_EQUALVERIFY...
 ----
 
-==== HTLC Cooperative and Timeout Failure
 
-((("cooperative failure")))((("hash time-locked contracts (HTLCs)","cooperative/timeout failure")))((("timeout failure")))So far we looked at the "hash" part of HTLC and how it would work if everyone cooperated and was online at the time of payment.
+=== HTLC协作和过期作废
 
-What happens if someone goes offline or fails to cooperate? What happens if the payment cannot succeed?
 
-We need to ensure a way to "fail gracefully," because occasional routing failures are inevitable. There are two ways to fail: cooperatively and with a time-locked refund.
+((("cooperative failure")))((("hash time-locked contracts (HTLCs)","cooperative/timeout failure")))((("timeout failure")))到目前为止，我们看了HTLC中的“哈希”部分，以及在付款时，如果每个人都合作并在线的情况下它是如何工作的。
 
-Cooperative failure is relatively simple: the HTLC is unwound by every participant in the route, removing the HTLC output from their commitment transactions without changing the balance. We'll look at how that works in detail in <<channel_operation>>.
 
-Let's look at how we can reverse an HTLC without the cooperation of one or more participants. We need to make sure that if one of the participants does not cooperate, the funds are not simply locked in the HTLC _forever_. This would give someone the opportunity to ransom the funds of another participant: "I'll leave your funds tied up forever if you don't pay me ransom."
+如果有人离线或者没有配合，会发生什么？如果支付无法成功，会发生什么？
 
-To prevent this, every HTLC script includes a refund clause that is connected to a timelock. Remember our original escrow contract? "Bob has 24 hours to show the secret after the contract is signed. If Bob does not provide the secret by this time, Alice's deposit will be refunded."
 
-The time-locked refund is an important part of the script that ensures _atomicity_, so that the entire end-to-end payment either succeeds or fails gracefully. There is no "half paid" state to worry about. If there is a failure, every participant can either unwind the HTLC cooperatively with their channel partner or put the time-locked refund transaction on-chain unilaterally to get their money back.
+我们需要确保一种“优雅地失败”的方式，因为偶发的路由失败是不可避免的。有两种失败的方式：合作失败和带有时间锁定退款的失败。
 
-To implement this refund in Bitcoin Script, we use a special operator pass:[<code>O&#x2060;P&#x2060;_&#x2060;C&#x2060;H&#x2060;E&#x2060;C&#x2060;K&#x2060;L&#x2060;O&#x2060;C&#x2060;K&#x2060;T&#x2060;I&#x2060;M&#x2060;E&#x200b;V&#x2060;E&#x2060;R&#x2060;I&#x2060;F&#x2060;Y</code>] also known +OP_CLTV+ for short. Here's the script, as seen previously in line 13 of <<received_htlc>>:
 
+合作失败相对简单：路由中的每个参与方都取消HTLC，从他们的承诺交易中删除HTLC输出，而不会改变余额。我们会在<<channel_operation>>中详细说明它的工作原理。
+
+
+让我们看一下如果在一个或多个参与者不合作的情况下如何撤销HTLC。我们需要确保如果其中一位参与者不合作，资金不会永远被锁定在HTLC中。以下这种行为将给一些人提供勒索其他参与者资金的机会：
+“我会让你的资金一直被困着，除非你付赎金”。
+
+
+为了防止这种情况发生，每个HTLC脚本都包括一个与时间锁定相关的退款条款。还记得我们最初的担保合约吗？“Bob必须在合约签署后24小时内展示密钥。 如果Bob在此期限内未提供密钥，Alice的存款将被退还。”
+
+
+时间锁定退款是脚本的重要部分，确保了整个端到端的支付要么成功，要么优雅地失败。没有“半付款”状态需要担心。如果发生故障，每个参与者可以与其通道伙伴合作撤销HTLC，或者单方面将时间锁定，并将退款交易上链以取回他们的资金。
+
+
+为了在Bitcoin脚本中实现这种退款，我们使用一个特殊的运算符OP_CHECKLOCKTIMEVERIFY，也被简称为OP_CLTV。以下是脚本内容，在我们之前看到的脚本的第13行：
 ----
 ...
 	OP_DROP <cltv_expiry> OP_CHECKLOCKTIMEVERIFY OP_DROP
@@ -595,26 +752,36 @@ To implement this refund in Bitcoin Script, we use a special operator pass:[<cod
 ...
 ----
 
-The +OP_CLTV+ operator takes an expiry time defined as the block height after which this transaction is valid. If the transaction timelock is not set the same as +<cltv_expiry>+, the evaluation of the script fails and the transaction is invalid. Otherwise, the script continues without any output to the stack. Remember, the +VERIFY+ suffix means this operator does not output +TRUE+ or +FALSE+ but instead either halts/fails or continues without stack output.
 
-Essentially, the +OP_CLTV+ acts as a "gatekeeper" preventing the script from proceeding any further if the +<cltv_expiry>+ block height has not been reached on the Bitcoin blockchain.
+OP_CLTV运算符采用一个到期时间，该时间被定义为交易在该区块高度之后生效。如果交易时间锁定与+<cltv——expiry>+不同，则脚本的执行失败，该交易无效。否则，脚本将继续进行，而不会对堆栈进行任何输出。请记住，VERIFY后缀表示此运算符不会输出TRUE或FALSE，而是会在没有堆栈输出的情况下继续执行或停止/失败。
 
-The +OP_DROP+ operator simply drops the topmost item on the script stack. This is necessary in the beginning because there is a "leftover" item from the previous script lines. It is necessary _after_ +OP_CLTV+ to remove the +<cltv_expiry>+ item from the top of the stack because it is no longer necessary.
 
-Finally, once the stack has been cleaned up, there should be a public key and signature left behind that +OP_CHECKSIG+ can verify. As we saw in <<preventing_theft>>, this is necessary to ensure that only the rightful owner of the funds can claim them, by binding this output to their public key and requiring a signature.
+很明显，OP_CLTV像一个“门卫”一样，如果在比特币区块链上达到区块高度之前，它会阻止脚本继续执行任何更进一步的操作。
+
+
++OP_DROP+ 运算符只是简单地删除了脚本堆栈上的最上面一项。在脚本的开始阶段，这是必要的，因为上一条脚本留下了一项。在+OP_CLTV+之后，这是必要的，以将+<cltv_expiry>+项目从堆栈顶部移除，因为它不再需要了。
+
+
+最后，一旦堆栈已经被清理，应该留下一个公钥和签名，以供OP_CHECKSIG验证。正如我们在<<preventing_theft>>中所看到的那样，这是必要的，以确保只有资金的合法所有者可以通过公钥签名的判断，将此输出绑定到他们的公钥地址。
 
 ==== Decrementing Timelocks
 
-((("hash time-locked contracts (HTLCs)","decrementing timelocks")))As the HTLCs are extended from Alice to Dina, the time-locked refund clause in each HTLC has a _different_ +cltv_expiry+ value. We will see this in more detail in <<onion_routing>>. But suffice it to say that to ensure an orderly unwinding of a payment that fails, each hop needs to wait a bit less for their refund. The difference between timelocks for each hop is called the +cltv_expiry_delta+, and is set by each node and advertised to the network, as we will see in <<gossip>>.
 
-For example, Alice sets the refund timelock on the first HTLC to a block height of current + 500 blocks ("current" being the current block height). Bob would then set the timelock +cltv_expiry+ on the HTLC to Chan to current + 450 blocks. Chan would set the timelock to current + 400 blocks from the current block height. This way, Chan can get a refund on the HTLC he offered to Dina _before_ Bob gets a refund on the HTLC he offered to Chan. Bob can get a refund of the HTLC he offered to Chan before Alice can get a refund for the HTLC she offered to Bob. The decrementing timelock prevents race conditions and ensures the HTLC chain is unwound backward, from the destination toward the origin.(((range="endofrange", startref="ix_08_routing_htlcs-asciidoc3")))(((range="endofrange", startref="ix_08_routing_htlcs-asciidoc2")))
+由于HTLC是从Alice向Dina扩展的，每个HTLC中的时间锁定退款条款都有不同的+cltv_expiry+值。我们将在<<onion_routing>>中更详细地介绍这一点。但可以简单地说，为了确保失败的支付有条不紊地撤销，每跳都需要等待更少的时间进行退款。每跳的时间锁定之间的差异称为+cltv_expiry_delta+，由每个节点设置并广告到网络中，如我们将在<<gossip>>中看到的那样。
 
-=== Conclusion
 
-In this chapter we saw how Alice can pay Dina even if she doesn't have a direct payment channel. Alice can find a path that connects her to Dina and route a payment across several payment channels so that it reaches Dina.
+例如，Alice将第一个HTLC的退款时间锁定设置为当前500个区块高度（其中“当前”是目前的区块高度）。然后Bob会将HTLC的+cltv_expiry+设置为从当前块高度到Chanto的450个区块。Chan会将时间锁定设置为离当前块高度400个区块。这样，Chan可以在Bob获得HTLC的退款之前获得退款，Bob可以在Alice获得HTLC的退款之前获得退款。减少退款时间锁定避免了竞态条件，并确保HTLC链可以从目标反向撤销回到起点。(((range="endofrange", startref="ix_08_routing_htlcs-asciidoc3")))(((range="endofrange", startref="ix_08_routing_htlcs-asciidoc2")))
 
-To ensure that the payment is atomic and trustless across multiple hops, Alice must implement a fairness protocol in cooperation with all the intermediary nodes in the path. The fairness protocol is currently implemented as an HTLC, which commits funds to a payment hash derived from a secret payment preimage.
+=== 总结
 
-Each of the participants in the payment route can extend an HTLC to the next participant, without worrying about theft or stuck funds. The HTLC can be redeemed by revealing the secret payment preimage. Once an HTLC reaches Dina, she reveals the preimage, which flows backward, resolving all the HTLCs offered.
 
-Finally, we saw how a time-locked refund clause completes the HTLC, ensuring that every participant can get a refund if the payment fails but for whatever reason one of the participants doesn't cooperate in unwinding the HTLCs. By always having the option to go on-chain for a refund, the HTLC achieves the fairness goal of atomicity and trustless operation.(((range="endofrange", startref="ix_08_routing_htlcs-asciidoc0")))
+在本章中，我们看到了如果Alice没有一个直接的支付通道如何向Dina付款。Alice可以找到一条连接她和Dina的路径，并在多个支付通道上路由支付，使其达到Dina。
+
+
+为了确保跨多跳的支付是原子和免信任的，Alice必须与路径中所有中间节点合作，实现公平协议。当前实施公平协议的方式是使用HTLC，它将资金承诺到由秘密支付原像派生的支付哈希中。
+
+
+支付路径中的每个参与方都可以向下一个参与方扩展HTLC，而不必担心偷窃或资金被困。通过揭示秘密支付前图像，HTLC可以得到赎回。一旦HTLC到达Dina，她揭示了原像，它将向后流动，解决所有提供的HTLC。
+
+
+最后，我们看到了如何使用时间锁定退款条款来完成HTLC，以确保即使因某种原因或某个参与者不合作撤销HTLC而失败，每个参与者仍可以获得退款。通过始终拥有链外退款选项，HTLC实现了原子性和免信任操作的公平目标。(((range="endofrange", startref="ix_08_routing_htlcs-asciidoc0")))

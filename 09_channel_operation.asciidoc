@@ -1,62 +1,76 @@
 [[channel_operation]]
 == Channel Operation and pass:[<span class="keep-together">Payment Forwarding</span>]
 
-((("payment channel","operation", id="ix_09_channel_operation-asciidoc0", range="startofrange")))In this chapter we will bring together payment channels and hash time-locked contracts (HTLCs). In <<payment_channels>>, we explained the way Alice and Bob construct a payment channel between their two nodes. We also looked at the commitment and penalty mechanisms that secure the payment channel. In <<routing>>, we looked at HTLCs and how these can be used to route a payment across a path made of multiple payment channels. In this chapter we bring the two concepts together by looking at how HTLCs are managed on each payment channel, how the HTLCs are committed to the channel state, and how they are settled to update the channel balances.
+== 通道操作和pass:[<span class="keep-together">支付转发</span>]
 
-Specifically, we will be discussing "Adding, settling, failing HTLCs" and the "Channel state machine" that form the overlap between the peer-to-peer layer and the routing layer, as highlighted by an outline in <<LN_protocol_channelops_highlight>>. 
+
+((("payment channel","operation", id="ix_09_channel_operation-asciidoc0", range="startofrange")))本章将汇集支付通道和哈希时间锁合约（HTLCs）。在<<支付通道>>中，我们解释了Alice和Bob如何在其两个节点之间构建支付通道。我们还研究了保护支付通道的承诺和惩罚机制。在<<路由>>中，我们研究了哈希时间锁合约(HTLCs)以及如何使用它们来跨多个支付通道路由支付。本章将两个概念结合在一起，探讨了每个支付通道上如何管理HTLCs，如何将HTLCs提交到通道状态，以及如何通过结算来更新通道余额。
+
+
+具体而言，我们将讨论“添加、结算、失败HTLCs”以及“通道状态机”，这些形成了点对点层和路由层之间的重叠，正如<<LN_protocol_channelops_highlight>>中的轮廓所突出的那样。
 
 [[LN_protocol_channelops_highlight]]
 .Channel operation and payment forwarding in the Lightning protocol suite
 image::images/mtln_0901.png["Channel operation and payment forwarding in the Lightning protocol suite"]
 
 
-=== Local (Single Channel) Versus Routed (Multiple Channels)
+=== Local (Single Channel) versus Routed (Multiple Channels)
 
-((("payment channel","local channel versus routed channels")))Even though it is possible to send payments across a payment channel simply by updating the channel balances and creating new commitment transactions, the Lightning protocol uses HTLCs even for "local" payments across a payment channel. The reason for this is to maintain the same protocol design regardless of whether a payment is only one hop (across a single payment channel) or several hops (routed across multiple payment channels).
 
-By maintaining the same abstraction for both local and remote, we not only simplify the protocol design but also improve privacy. For the recipient of a payment there is no discernible difference between a payment made directly by their channel partner and a payment forwarded by their channel partner on behalf of someone else.
+((("payment channel","local channel versus routed channels")))即使可以通过更新支付通道余额和创建新的承诺交易来跨支付通道发送支付，闪电网络协议仍然使用HTLCs来进行本地支付。这是为了在不考虑支付只有一个跳点（跨越单个支付通道）还是多个跳点（通过多个支付通道到达终点）的情况下，保持相同的协议设计。
 
-=== Forwarding Payments and Updating Commitments pass:[<span class="keep-together">with HTLCs</span>]
 
-((("commitment transactions","updating commitments with HTLCs", id="ix_09_channel_operation-asciidoc1", range="startofrange")))((("hash time-locked contracts (HTLCs)","updating commitments with", id="ix_09_channel_operation-asciidoc2", range="startofrange")))((("payment channel","updating commitments with HTLCs", id="ix_09_channel_operation-asciidoc3", range="startofrange")))We will revisit our example from <<routing>> to demonstrate how the HTLCs from Alice to Dina get committed to each payment channel. As you recall in our example, Alice is paying Dina 50,000 satoshis by routing an HTLC via Bob and Chan. The network is shown in <<alice_dina_htlc_2>>. 
+通过为本地和远程支付维护相同的抽象，我们不仅简化了协议设计，还提高了隐私保护。对于支付的接收方来说，他们无法分辨其通道伙伴直接支付和其通道伙伴代表其他人转发的支付之间的任何差异。
+
+=== 通过使用HTLCs转发支付并更新承诺交易
+
+
+((("commitment transactions","updating commitments with HTLCs", id="ix_09_channel_operation-asciidoc1", range="startofrange")))((("hash time-locked contracts (HTLCs)","updating commitments with", id="ix_09_channel_operation-asciidoc2", range="startofrange")))((("payment channel","updating commitments with HTLCs", id="ix_09_channel_operation-asciidoc3", range="startofrange")))示例中，演示了如何将从Alice到Dina的HTLC提交到每个支付通道中。如你之前所见，Alice通过Bob和通道来路由HTLC以向Dina支付50,000 satoshis。网络如图 <<alice_dina_htlc_2>>所示。
 
 [[alice_dina_htlc_2]]
 .Alice pays Dina with an HTLC routed via Bob and Chan
 image::images/mtln_0809.png["Alice pays Dina with an HTLC routed via Bob and Chan"]
 
-We will focus on the payment channel between Alice and Bob and review the messages and transactions that they use to process this HTLC.
 
-==== HTLC and Commitment Message Flow
+我们将重点关注Alice和Bob之间的支付通道，回顾他们用于处理此HTLC的消息和交易。
 
-((("hash time-locked contracts (HTLCs)","commitment message flow")))The message flow between Alice and Bob (and also between any pair of channel partners) is shown in <<HTLC_commitment_message_flow>>. 
+==== HTLC和承诺消息流程
+
+
+((("hash time-locked contracts (HTLCs)","commitment message flow")))Alice和Bob之间的消息流（也适用于任何一对通道合作伙伴）如下图所示<<HTLC_commitment_message_flow>>.
 
 [[HTLC_commitment_message_flow]]
 .The message flow for HTLC commitment between channel partners
 image::images/mtln_0903.png["The message flow for HTLC commitment between channel partners"]
 
+
 [role="pagebreak-before"]
-We've already seen the +commitment_signed+ and +revoke_and_ack+ in <<payment_channels>>. Now we will see how HTLCs fit into the commitment scheme. The two new messages are +update_add_htlc+, which Alice uses to ask Bob to add an HTLC, and +update_fulfill_htlc+, which Bob uses to redeem the HTLC once he has received the payment secret (Dina's secret).(((range="endofrange", startref="ix_09_channel_operation-asciidoc3")))(((range="endofrange", startref="ix_09_channel_operation-asciidoc2")))(((range="endofrange", startref="ix_09_channel_operation-asciidoc1")))
+在之前的<<支付通道>>中，我们已经看到过+commitment_signed+和+revoke_and_ack+。现在我们将看到HTLC是如何适配承诺模式的。新增的两个消息是+update_add_htlc+和+update_fulfill_htlc+。Alice使用+update_add_htlc+请求BOB添加HTLC，而Bob使用+update_fulfill_htlc+在获得支付密码（Dina的密码）后兑现HTLC。(((range="endofrange", startref="ix_09_channel_operation-asciidoc3")))(((range="endofrange", startref="ix_09_channel_operation-asciidoc2")))(((range="endofrange", startref="ix_09_channel_operation-asciidoc1")))
 
-=== Forwarding Payments with HTLCs
+=== 基于HTLC的支付转发
 
-((("hash time-locked contracts (HTLCs)","forwarding payments with", id="ix_09_channel_operation-asciidoc4", range="startofrange")))((("payment forwarding","with HTLCs", id="ix_09_channel_operation-asciidoc5", range="startofrange")))Alice and Bob start with a payment channel that has a 70,000 satoshi balance on each side.
+((("hash time-locked contracts (HTLCs)","forwarding payments with", id="ix_09_channel_operation-asciidoc4", range="startofrange")))((("payment forwarding","with HTLCs", id="ix_09_channel_operation-asciidoc5", range="startofrange")))Alice和Bob开始具有双方余额为70,000 satoshi的支付通道。
 
-As we saw in <<payment_channels>>, this means that Alice and Bob have negotiated and each hold commitment transactions. These commitment transactions are asymmetric, delayed, and revocable, and look like the example in <<alice_bob_commitment_txs_1>>. 
+
+如同在<<支付通道>>中所看到的，这意味着Alice和Bob已经协商并持有承诺交易。这些承诺交易是对称、延迟和可撤销的，并且看起来像<<alice_bob_commitment_txs_1>>中的示例。
 
 [[alice_bob_commitment_txs_1]]
 .Alice and Bob's initial commitment transactions
 image::images/mtln_0904.png["Alice and Bob's initial commitment transactions"]
 
-==== Adding an HTLC
+==== 新增一个HTLC
 
-((("hash time-locked contracts (HTLCs)","adding an HTLC")))Alice wants Bob to accept an HTLC worth 50,200 satoshis to forward to Dina. To do so, Alice must send the details of this HTLC, including the payment hash and amount, to Bob. Bob will also need to know where to forward it, which is something we discuss in detail in <<onion_routing>>.
 
-To add the HTLC, Alice starts the flow we saw in <<HTLC_commitment_message_flow>> by sending the +update_add_htlc+ message to Bob.
+((("hash time-locked contracts (HTLCs)","adding an HTLC")))Alice希望Bob接受价值50,200 satoshi且转发到Dina的HTLC。为了实现这一点，Alice必须将此HTLC的详细信息（包括付款哈希和金额）发送给Bob。Bob还需要知道将其转发到何处，这是我们在<<洋葱路由>>中详细讨论的内容。
+
+
+为了添加HTLC，Alice通过向Bob发送+update_add_htlc+消息启动了我们在<<HTLC_commitment_message_flow>>中看到的流程。
 
 [[update_add_htlc]]
-==== The update_add_HTLC Message
+==== update_add_HTLC 消息
 
-((("hash time-locked contracts (HTLCs)","update_add_HTLC message")))((("update_add_HTLC message")))Alice sends the `update_add_HTLC` Lightning message to Bob. This message is defined in https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md#adding-an-htlc-update_add_htlc[BOLT #2: Peer Protocol, `update_add_HTLC`], and is shown in Example 9-1. 
+
+((("hash time-locked contracts (HTLCs)","update_add_HTLC message")))((("update_add_HTLC message")))Alice向Bob发送update_add_HTLC闪电网络消息。该消息在 https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md#adding-an-htlc-update_add_htlc[BOLT＃2：PeerProtocol，`update_add_HTLC`]中定义，示例9-1所示。
 
 [[update_add_HTLC_message_fields]]
 .The `update_add_HTLC` message
@@ -71,29 +85,31 @@ To add the HTLC, Alice starts the flow we saw in <<HTLC_commitment_message_flow>
 ----
 ====
 
-+channel_id+:: This is the channel that Alice has with Bob where she wants to add the HTLC. Remember that Alice and Bob may have multiple channels with each other.
 
-+id+:: This is an HTLC counter and starts at +0+ for the first HTLC offered to Bob by Alice and is incremented for each subsequent offered HTLC. 
++channel_id+:: 这是Alice与Bob之间的通道，她想要在其中添加HTLC。请记住，Alice和Bob可能彼此之间拥有多个通道。
 
-+amount_msat+:: This is the amount (value) of the HTLC in millisatoshis. In our example this is 50,200,000 millisatoshis (i.e., 50,200 satoshis).
++id+:: 这是一个HTLC计数器，从0开始为Alice向Bob提供的第一个HTLC，并在为每个后续提供的HTLC递增。
 
-+payment_hash+:: This is the payment hash calculated from Dina's invoice. It is _H_ = RIPEMD160(SHA-256(_R_)), where _R_ is Dina's secret that is known only by Dina and will be revealed if Dina is paid.
++amount_msat+:: 这是以毫聪为单位的HTLC金额（value）。在我们的示例中，这是50,200,000毫聪（即50,200聪）。
 
-+cltv_expiry+:: This is the expiry time for this HTLC, which will be encoded as a time-locked refund in case the HTLC fails to reach Dina in this time.
++payment_hash+:: 这是从Dina的发票计算出来的付款哈希。它是_H_=RIPEMD160(SHA-256(R))，其中_R_是Dina的密码，仅由Dina知道，并在付款成功时公开。
 
-+onion_routing_packet+:: This is an onion-encrypted route that tells Bob where to forward this HTLC next (to Chan). Onion routing is covered in detail in <<onion_routing>>.
++cltv_expiry+:: 这是此HTLC的到期时间，在此时间后，如果HTLC未能达到Dina，则将作为时间锁定的退款编码。
+
++onion_routing_packet+:: 这是一个洋葱加密路线，告诉Bob在哪里继续将这个HTLC转发（到通道toChan）。洋葱路由在<<洋葱路由>>中有详细介绍。
+
 
 [TIP]
 ====
-As a reminder, accounting within the Lightning Network is in units of millisatoshis (thousandths of a satoshi), whereas Bitcoin accounting is in satoshis. Any amounts in HTLCs are millisatoshis, which are then rounded to the nearest satoshi in the Bitcoin commitment transactions.
+作为提醒，闪电网络中的记账单位是毫聪（聪的千分之一），而比特币的记账单位是聪。任何HTLC中的金额都是毫聪，然后在比特币承诺交易中四舍五入到最接近的聪。
 ====
 
-==== HTLC in Commitment Transactions
+==== 承诺交易里的HTLC
 
-((("commitment transactions","HTLC in")))((("hash time-locked contracts (HTLCs)","commitment transactions and")))The received information is enough for Bob to create a new commitment transaction. The new commitment transaction has the same two outputs +to_self+ and +to_remote+ for Alice and Bob's balance, and a _new_ output representing the HTLC offered by Alice.
+((("commitment transactions","HTLC in")))((("hash time-locked contracts (HTLCs)","commitment transactions and")))收到的信息足以使Bob创建一个新的承诺交易。新的承诺交易对于Alice和Bob的余额具有相同的两个输出+to_self+和+to_remote+，以及表示由Alice提供的HTLC的新输出。
 
-We've already seen the basic structure of an HTLC in <<routing>>. The complete script of an offered HTLC is defined in https://github.com/lightningnetwork/lightning-rfc/blob/master/03-transactions.md#offered-htlc-outputs[BOLT #3: Transactions, Offered HTLC Output] and is shown in <<offered_htlc_output_script>>. 
 
+我们已经在<<路由>>中看到了HTLC的基本结构。所提供的HTLC的完整脚本在 https://github.com/lightningnetwork/lightning-rfc/blob/master/03-transactions.md#offered-htlc-outputs[BOLT #3: Transactions, Offered HTLC Output]
 
 [[offered_htlc_output_script]]
 .Offered HTLC output script
@@ -117,27 +133,34 @@ OP_ELSE
     OP_ENDIF
 OP_ENDIF
 ----
-<1> The first clause of the `OP_IF` conditional is redeemable by Alice with a revocation key. If this commitment is later revoked, Alice will have a revocation key to claim this output in a penalty transaction, taking the whole channel balance.
-<2>  The second clause is redeemable by the preimage (payment secret, or in our example, Dina's secret) if it is revealed. This allows Bob to claim this output if he has the secret from Dina, meaning he has successfully delivered the payment to Dina.
-<3> The third and final clause is a refund of the HTLC to Alice if the HTLC expires without reaching Dina. It is time-locked with the expiration +cltv_expiry+. This ensures that Alice's balance is not "stuck" in an HTLC that can't be routed to Dina.
+
+<1> OP_IF 条件中的第一个子句使用Alice的撤销密钥可以赎回。如果这个承诺被撤销，Alice将拥有一个撤销密钥来在惩罚交易中要求此输出，并拿走整个通道余额。
+<2> 第二个子句可以通过支付密钥(payment secret)的前图像，或者在我们的例子中，是Dina的密钥来赎回。这使得Bob如果拥有Dina的密钥（意味着他已经成功地将付款发送到Dina）就可以要求此输出。
+<3> 第三个也是最后一个子句是HTLC退款给Alice，如果HTLC在没有到达Dina的情况下过期。它是有时间锁的，与到期时间+cltv_expiry+相关联，这可以确保Alice的余额不会“卡住”在无法路由到Dina的HTLC中。
 ====
 
-There are three ways to claim this output. Try to read the script and see if you can figure it out (remember, it is a stack-based language, so things appear "backward").
 
-==== New Commitment with HTLC Output
+有三种方法可以要求此输出，试着阅读脚本并看看是否可以找出这些方法（记住，它是一个基于堆栈的语言，所以看起来似乎“反向”）。
 
-((("commitment transactions","new commitment with HTLC output", id="ix_09_channel_operation-asciidoc6", range="startofrange")))((("hash time-locked contracts (HTLCs)","new commitment with HTLC output", id="ix_09_channel_operation-asciidoc7", range="startofrange")))Bob now has the necessary information to add this HTLC script as an additional output and create a new commitment transaction. Bob's new commitment will have 50,200 satoshis in the HTLC output. That amount will come from Alice's channel balance, so Alice's new balance will be 19,800 satoshis (70,000 – 50,200 = 19,800). Bob constructs this commitment as a tentative "Commitment #3," shown in <<add_commitment_3b>>. 
+方法一：如果Alice拥有撤销密钥，那么她可以使用 OP_IF 条件中的第一个子句来赎回输出。
+方法二：如果Bob拥有Dina的密钥，那么他可以使用 OP_ELSE 子句中的第二个条件来赎回输出。
+方法三：如果HTLC过期但没到达Dina，那么Alice可以在时间锁到期时，使用 OP_ELSE 子句的第三个条件来退回HTLC的余额。
+
+
+==== 新的带有HTLC输出的承诺
+
+((("commitment transactions","new commitment with HTLC output", id="ix_09_channel_operation-asciidoc6", range="startofrange")))((("hash time-locked contracts (HTLCs)","new commitment with HTLC output", id="ix_09_channel_operation-asciidoc7", range="startofrange")))Bob现在有必要的信息来将此HTLC脚本作为附加输出添加，并创建新的承诺交易。Bob的新承诺将在HTLC输出中有50,200聪。这个金额将来自Alice的通道余额，因此Alice的新余额将是19,800聪(70,000 - 50,200 = 19,800)。Bob将此承诺构建为一个临时的“承诺＃3”，在<<add_commitment_3b>>中表示。
 
 [[add_commitment_3b]]
 .Bob's new commitment with an HTLC output
 image::images/mtln_0905.png["Bob's new commitment with an HTLC output"]
 
 [role="pagebreak-before less_space"]
-==== Alice Commits
+==== Alice的承诺
 
-Shortly after sending the +update_add_htlc+ message, she will commit to the new state of the channel, so that the HTLC can be safely added by Bob. Bob has the HTLC information and has constructed a new commitment but does not yet have this new commitment signed by Alice.
+在发送 +update_add_htlc+ 消息后不久，Alice将提交通道的新状态，以便Bob可以安全地添加HTLC。Bob拥有HTLC信息并构建了一个新的承诺，但此时还没有被Alice签署这个新的承诺。
 
-Alice sends +commitment_signed+ to Bob, with the signature for the new commitment and for the HTLC within. We saw the +commitment_signed+ message in <<payment_channels>>, but now we can understand the rest of the fields. As a reminder, it is shown in <<ops_commitment_signed_message>>. 
+Alice发送 +commitment_signed+ 给Bob，其中包含新承诺和HTLC的签名。我们在<<payment_channels>>中看到了+commitment_signed+ 消息，但现在我们可以理解其他字段的含义了。作为一个提醒，它在Example9-3中被展示。
 
 [[ops_commitment_signed_message]]
 .The `commitment_signed` message
@@ -150,23 +173,29 @@ Alice sends +commitment_signed+ to Bob, with the signature for the new commitmen
 ----
 ====
 
-The fields +num_htlcs+ and +htlc_signature+ now make more sense:
 
-+num_htlcs+:: This is the number of HTLCs that are outstanding in the commitment transaction. In our example, just one HTLC, the one Alice offered.
+字段 +num_htlcs+ 和 +htlc_signature+ 现在有了更多的含义:
 
-+htlc_signature+:: This is an array of signatures (+num_htlcs+ in length), containing signatures for the HTLC outputs.
++num_htlcs+:: 这是承诺交易中未完成的HTLC的数量。在我们的例子中，只有一个HTLC，也就是Alice提供的这一个。
 
-Alice can send these signatures without hesitation: she can always get a refund if the HTLC expires without being routed to Dina.
 
-Now, Bob has a new signed commitment transaction, as shown in <<signed_commitment_3b>>. 
++htlc_signature+:: 
+这是一个签名数组，长度为 +num_htlcs+ ，其中包含HTLC输出的签名。
+
+
+Alice可以毫不犹豫地发送这些签名：如果HTLC过期没有被路由到Dina，她总是可以获得退款。
+
+
+现在，Bob有了新的承诺交易签名，如<<signed_commitment_3b>>图所示.
 
 [[signed_commitment_3b]]
 .Bob has a new signed commitment
 image::images/mtln_0906.png[Bob has a new signed commitment]
 
-==== Bob Acknowledges New Commitment and Revokes Old One
 
-((("hash time-locked contracts (HTLCs)","acknowledging new commitment/revoking old commitment")))Now that Bob has a new signed commitment, he needs to acknowledge it and revoke the old commitment. ((("revoke_and_ack message", id="ix_09_channel_operation-asciidoc8", range="startofrange")))He does so by sending the +revoke_and_ack+ message, as we saw in <<payment_channels>> previously. As a reminder, that message is shown in <<revoke_and_ack_message_2>>. 
+==== Bob确认新承诺并撤销旧承诺
+
+((("hash time-locked contracts (HTLCs)","acknowledging new commitment/revoking old commitment")))既然Bob有了一个新的已签署的承诺，他需要确认并撤销旧承诺。他可以通过发送 +revoke_and_ack+ 消息来实现，就像我们之前在<<payment_channels>>中看到的那样。作为提醒，这个消息被展示在<<revoke_and_ack_message_2>>中。
 
 [[revoke_and_ack_message_2]]
 .The +revoke_and_ack+ message
@@ -178,78 +207,101 @@ image::images/mtln_0906.png[Bob has a new signed commitment]
 ----
 ====
 
-Bob sends the +per_commitment_secret+ that allows Alice to construct a revocation key to build a penalty transaction spending Bob's old commitment. Once Bob has sent this, he can never publish "Commitment #2" without risking a penalty transaction and losing all his money. So, the old commitment is effectively revoked.
 
-Bob has effectively moved the channel state forward, as shown in <<revoked_commitment_2b>>. 
+Bob发送 +per_commitment_secret+ ，允许Alice构建一个撤销密钥来构建一笔惩罚交易来花费Bob的旧承诺。一旦Bob发送了这个消息，如果他发布“Commitment＃2”，就会冒着惩罚交易和失去所有资金的风险。因此，旧承诺被有效地撤销了。
+
+
+Bob已经成功的地将通道状态向前移动，如<<revoked_commitment_2b>>所示
 
 [[revoked_commitment_2b]]
 .Bob has revoked the old commitment
 image::images/mtln_0907.png[Bob has revoked the old commitment]
 
-Despite the fact that Bob has a new (signed) commitment transaction and an HTLC output inside, he cannot consider his HTLC as being set up successfully.
 
-He first needs to have Alice revoke her old commitment, because otherwise, Alice can roll back her balance to 70,000 satoshis. Bob needs to make sure that Alice also has a commitment transaction containing the HTLC and has revoked the old commitment.
+尽管Bob有一个新的(已签名的)承诺交易和一个HTLC输出，但他不能认为他的HTLC已经被成功设置。
 
-That is why, if Bob is not the final recipient of the HTLC funds, he should not forward the HTLC yet by offering an HTLC on the next channel with Chan.
 
-Alice has constructed a mirror-image new commitment transaction containing the new HTLC, but it is yet to be signed by Bob. We can see it in <<add_commitment_3a>>. 
+他首先需要让Alice撤销她的旧承诺，否则，Alice可以将自己的余额回滚到70,000聪。Bob需要确保Alice也有包含HTLC并且已经撤销旧承诺的承诺交易。
+
+
+这就是为什么如果Bob不是HTLC资金的最终收件人，他不应该通过在下一个与Chan通道上提供HTLC来转发HTLC。
+
+
+Alice已经构建了一个包含新HTLC的新承诺交易的镜像，但它还没有被Bob签署。我们可以在<<add_commitment_3a>>中看到这个。
 
 [[add_commitment_3a]]
 .Alice's new commitment with an HTLC output
 image::images/mtln_0908.png["Alice's new commitment with an HTLC output"]
 
-As we described in <<payment_channels>>, Alice's commitment is the mirror image of Bob's, as it contains the asymmetric, delayed, revocable construct for revocation and penalty enforcement of old commitments. Alice's 19,800 satoshi balance (after deducting the HTLC value), is delayed and revocable. Bob's 70,000 satoshi balance is immediately redeemable.
 
-Next, the message flow for +commitment_signed+ and +revoke_and_ack+ is now repeated, but in the opposite direction. Bob sends +commitment_signed+ to sign Alice's  new commitment, and Alice responds by revoking her old commitment.(((range="endofrange", startref="ix_09_channel_operation-asciidoc8")))
+正如我们在<<payment_channels>>中所描述的那样，Alice的承诺是Bob的镜像，因为它包含了旧承诺的撤销和惩罚执行的非对称、延迟、可撤销的结构。Alice的19,800聪余额（扣除HTLC价值后）是可延迟和可撤销的，而Bob的70,000聪余额是可以立即赎回的。
 
-For completeness sake, let's quickly review the commitment transactions as this round of commitment/revocation happens.
+
+
+接下来，+commitment_signed+ 和 +revoke_and_ack+ 的消息流程现在被重复，但是在相反的方向上进行。Bob发送 +commitment_signed+ 来签署Alice的新承诺，而Alice则响应通过撤销她的旧承诺。(((range="endofrange", startref="ix_09_channel_operation-asciidoc8")))
+
+
+为了完整起见，让我们快速审查一下当这一轮承诺/撤销发生时的承诺交易。
 
 [role="pagebreak-before less_space"]
 ==== Bob Commits
 
-Bob now sends a +commitment_signed+ back to Alice, with his signatures for Alice's new commitment transaction, including the HTLC output she has added.
 
-Now Alice has the signature for the new commitment transaction. The state of the channel is shown in <<signed_commitment_3a>>. 
+Bob现在向Alice发送 +commitment_signed+，其中包含他在Alice的新承诺交易中签名的签名，包括她添加的HTLC输出。
+
+
+现在Alice已经有了新承诺交易的签名。通道的状态如<<signed_commitment_3a>>所示。
 
 [[signed_commitment_3a]]
-.Alice has a new signed commitment
+.Alice has a new *signed* commitment
 image::images/mtln_0909.png[Alice has a new signed commitment]
 
 Alice can now acknowledge the new commitment by revoking the old one. Alice sends the +revoke_and_ack+ message containing the necessary +per_commitment_point+ that will allow Bob to construct a revocation key and penalty transaction. Thus, Alice revokes her old commitment.
 
-The channel state is shown in <<revoked_commitment_2a>>.(((range="endofrange", startref="ix_09_channel_operation-asciidoc7")))(((range="endofrange", startref="ix_09_channel_operation-asciidoc6"))) (((range="endofrange", startref="ix_09_channel_operation-asciidoc5")))(((range="endofrange", startref="ix_09_channel_operation-asciidoc4")))
+
+通道状态如图<<revoked_commitment_2a>>所示(((range="endofrange", startref="ix_09_channel_operation-asciidoc7")))(((range="endofrange", startref="ix_09_channel_operation-asciidoc6"))) (((range="endofrange", startref="ix_09_channel_operation-asciidoc5")))(((range="endofrange", startref="ix_09_channel_operation-asciidoc4")))
 
 [[revoked_commitment_2a]]
 .Alice has revoked the old commitment
 image::images/mtln_0910.png[Alice has revoked the old commitment]
 
-=== Multiple HTLCs
+=== 多组HTLC
 
-((("hash time-locked contracts (HTLCs)","multiple contracts")))At any point in time, Alice and Bob may have dozens or even hundreds of HTLCs across a single channel. Each HTLC is offered and added to the commitment transaction as an additional output. A commitment transaction therefore always has two outputs for the channel partner balances and any number of HTLC outputs, one per HTLC.
 
-As we saw in the +commitment_signed+ message, there is an array for HTLC signatures so that multiple HTLC commitments can be transmitted at the same time.
+((("hash time-locked contracts (HTLCs)","multiple contracts")))在任何时间点，Alice和Bob可能在单个通道上拥有数十甚至数百个HTLCs。每个HTLC都被提供并添加到承诺交易作为一个额外的输出。因此，承诺交易始终有两个输出，用于通道合作伙伴的余额以及任意数量的HTLC输出（每个HTLC一个）。
 
-The current maximum number of HTLCs allowed on a channel is 483 HTLCs to account for the maximum Bitcoin transaction size and ensure that the commitment transactions continue to be valid Bitcoin transactions.
 
-As we will see in the next section, the maximum is only for _pending_ HTLCs because, once an HTLC is fulfilled (or fails due to timeout/error), it is removed from the commitment transaction.
+正如我们在+commitment_signed+消息中看到的那样，有一个用于HTLC签名的数组，以便可以同时传输多个HTLC承诺。
+
+
+
+目前，在一个通道上允许的HTLC的最大数量是483个，以考虑到比特币交易的最大尺寸，并确保承诺交易能够继续保持有效的比特币交易。
+
+
+正如我们将在下一节中看到的那样，这个最大值仅适用于挂起的HTLC，因为一旦一个HTLC被满足（或由于超时/错误而失败），它就从承诺交易中被删除。
 
 === HTLC Fulfillment
 
-((("hash time-locked contracts (HTLCs)","fulfillment", id="ix_09_channel_operation-asciidoc9", range="startofrange")))((("payment forwarding","HTLC fulfillment", id="ix_09_channel_operation-asciidoc10", range="startofrange")))Now Bob and Alice both have a new commitment transaction with an additional HTLC output, and we have achieved a major step toward updating a payment pass:[<span class="keep-together">channel</span>].
 
-The new balance of Alice and Bob does not reflect yet that Alice has successfully sent 50,200 satoshis to Bob.
+((("hash time-locked contracts (HTLCs)","fulfillment", id="ix_09_channel_operation-asciidoc9", range="startofrange")))((("payment forwarding","HTLC fulfillment", id="ix_09_channel_operation-asciidoc10", range="startofrange")))现在，Bob和Alice都有了一个带有额外HTLC输出的新的承诺交易，我们已经迈出了更新付款通道的重要一步。
 
-However, the HTLCs are now set up in a way that secure settlement in exchange for the proof of payment will be possible.
 
-==== HTLC Propagation
+Alice成功向Bob发送了50,200个聪并不反映在它们的新余额中。
 
-((("hash time-locked contracts (HTLCs)","propagation", id="ix_09_channel_operation-asciidoc11", range="startofrange")))((("payment forwarding","HTLC propagation", id="ix_09_channel_operation-asciidoc12", range="startofrange")))Let's assume that Bob continues the chain and sets up an HTLC with Chan for 50,100 satoshis. The process will be exactly the same as we just saw between Alice and Bob. Bob will send +update_add_htlc+ to Chan, then they will exchange +commitment_signed+ and +revoke_and_ack+ messages in two rounds, progressing their channel to the next state.
 
-Next, Chan will do the same with Dina: offer a 50,000 satoshi HTLC, commit, and revoke, etc. However, Dina is the final recipient of the HTLC. Dina is the only one that knows the payment secret (the preimage of the payment hash). Therefore, Dina can fulfill the HTLC with Chan immediately!
+但是，HTLC现在已经设置好了，以确保在提供付款证明的情况下进行结算将成为可能。
 
-==== Dina Fulfills the HTLC with Chan
+==== HTLC传播
 
-Dina can settle the HTLC by sending an +update_ful&#x2060;fill_&#x200b;htlc+ message to Chan. The +update_fulfill_htlc+ message is defined in https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md#removing-an-htlc-update_fulfill_htlc-update_fail_htlc-and-update_fail_malformed_htlc[BOLT #2: Peer Protocol, `update_fulfill_htlc`] and is shown here:
+((("hash time-locked contracts (HTLCs)","propagation", id="ix_09_channel_operation-asciidoc11", range="startofrange")))((("payment forwarding","HTLC propagation", id="ix_09_channel_operation-asciidoc12", range="startofrange")))让我们假设Bob继续向后进行支付并与Chan设置了一个50,100聪的HTLC。这个过程将与我们刚刚在Alice和Bob之间看到的过程完全相同。Bob将向Chan发送+update_add_htlc+，然后他们将在两轮中交换+commitment_signed+和+revoke_and_ack+消息，使他们的通道进入下一个状态。
+
+
+接下来，Chan将使用相同的方式向Dina提供50,000聪的HTLC、承诺交易及撤销交易等。然而，Dina是HTLC的最终接收方。因此，只有Dina知道支付密钥（支付哈希的对应原像），可以立即满足与Chan的HTLC。
+
+==== Dina完全满足Chan的HTLC
+
+
+Dina可以通过向Chan发送 +update_fulfill_htlc+ 消息来结算HTLC。+update_fulfill_htlc+ 在 https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md#removing-an-htlc-update_fulfill_htlc-update_fail_htlc-and-update_fail_malformed_htlc[BOLT #2: Peer Protocol, `update_fulfill_htlc`] 中定义，显示如下：
 
 [[update_fulfill_htlc_message]]
 .The +update_fulfill_htlc+ message
@@ -259,15 +311,18 @@ Dina can settle the HTLC by sending an +update_ful&#x2060;fill_&#x200b;htlc+ mes
 [32*byte:payment_preimage]
 ----
 
-It's a really simple message:
+这是个简单的消息：
 
-+channel_id+:: The channel ID on which the HTLC is committed.
 
-+id+:: The ID of the HTLC (we started with 0 and incremented for each HTLC on the channel).
++channel_id+:: 包含HTLC的通道ID。这是为了确保在存在多个通道时，消息可以被正确路由。
 
-+payment_preimage+:: The secret that proves payment was made and redeems the HTLC. This is the +R+ value that was hashed by Dina to produce the payment hash in the invoice to Alice.
 
-When Chan receives this message, he will immediately check if the `payment_preimage` (let's call it _R_) produces the payment hash (let's call it _H_) in the HTLC that he offered to Dina. He hashes it like this:
++id+:: HTLC的ID（在该通道上，从0开始每个HTLC会递增一个ID）。
+
++payment_preimage+:: 证明支付已经得到了满足并且可以兑现HTLC的密钥，也就是Dina用来凭证支付事实的“R”值。这个“R”值在Dina向Alice发出支付请求时被用来生成支付哈希。
+
+
+当Chan接收到这条+update_fulfill_htlc+消息时，会立即检查“payment_preimage”值是否能够生成支付哈希，然后他会这样计算：
 
 ++++
 <ul class="simplelist">
@@ -275,52 +330,60 @@ When Chan receives this message, he will immediately check if the `payment_preim
 </ul>
 ++++
 
-If the result _H_ matches the payment hash in the HTLC, Chan can do a little dance of celebration. This long-awaited secret can be used to redeem the HTLC, and will be passed back along the chain of payment channels all the way to Alice, resolving every HTLC that was part of this payment to Dina.
+如果结果H与HTLC中的支付哈希匹配，Chan可以庆祝一下了。这个期待已久的密钥可以用来兑现HTLC，并且会沿着支付通道链路回到Alice，解决了包括Dina在内的所有参与本次支付的HTLC。
 
-Let's go back to Alice and Bob's channel and watch them unwind the HTLC. To get there, let's assume Dina sent the +update_fulfill_htlc+ to Chan, Chan sent +update_fulfill_htlc+ to Bob, and Bob sent +update_fulfill_htlc+ to Alice. The payment preimage has propagated all the way back to Alice.
 
-==== Bob Settles the HTLC with Alice
+现在，让我们回到Alice和Bob的通道并看着他们解决该HTLC。为了到达那里，我们假设Dina向Chan发送了 +update_fulfill_htlc+，Chan向Bob发送了 +update_fulfill_htlc+，而Bob也向Alice发送了 +update_fulfill_htlc+。支付密钥已经传播回Alice。
 
-When Bob sends the +update_fulfill_htlc+ to Alice, it will contain the same +payment_preimage+ that Dina selected for her invoice. That +payment_preimage+ has traveled backward along the payment path. At each step, the +channel_id+ will be different and +id+ (HTLC ID) may be different. But the preimage is the same!
+==== Bob和Alice进行HTLC结算
 
-Alice will also validate the +payment_preimage+ received from Bob. She will compare its hash to the HTLC payment hash in the HTLC she offered Bob. She will also find this preimage matches the hash in Dina's invoice. This is proof that Dina was paid.
 
-The message flow between Alice and Bob is shown in <<htlc_fulfillment_message_flow>>. 
+当Bob向Alice发送 +update_fulfill_htlc+ 消息时，它将包含与Dina发票中相同的 +payment_preimage+ 。这个 +payment_preimage+  已经在逆向支付路径中传播了。在每一步中， +channel_id+ 可能会有所不同， +id+ （HTLC ID）也可能会有所不同，但是 +payment_preimage+ 始终保持不变！
+
+
+Alice也将验证从Bob接收到的 +payment_preimage+ 。她将比较 +payment_preimage+  的哈希值是否与她向Bob支付请求中HTLC付款哈希一致，并且她还将找到这个 +payment_preimage+  是否与Dina发票中的哈希值匹配。这是证明Dina已经支付成功的证据。
+
+Alice和Bob之间的消息流如下图<<htlc_fulfillment_message_flow>>所示：
 
 [[htlc_fulfillment_message_flow]]
 .The HTLC fulfillment message flow
 image::images/mtln_0911.png[The HTLC fulfillment message flow]
 
-Both Alice and Bob can now remove the HTLC from the commitment transactions and update their channel balances.
 
-They create new commitments (Commitment #4), as shown in <<htlc_fulfillment_commitments_added>>. 
+至此，这个HTLC已经解决（或者说得到了兑现），Alice和Bob可以从承诺交易中移除这个HTLC，并更新他们的通道余额。这样一来，他们就完成了这次支付。
+
+他们创建新的承诺交易(Commitment #4),如下<<htlc_fulfillment_commitments_added>>所示：
 
 [[htlc_fulfillment_commitments_added]]
 .The HTLC is removed and balances are updated in new commitments
 image::images/mtln_0912.png[The HTLC is removed and balances are updated in new commitments]
 
+
+
 [role="pagebreak-before"]
-Next, they complete two rounds of commitment and revocation. First, Alice sends +commitment_signed+ to sign Bob's new commitment transaction. Bob responds with +revoke_and_ack+ to revoke his old commitment. Once Bob has moved the state of the channel forward, the commitments look like we see in <<htlc_fulfillment_commitments_bob_commit>>. 
+接下来，他们将完成两轮的承诺和撤销操作。首先，Alice会发送+commitment_signed+消息来签署Bob的新承诺交易。Bob会回复一个+revoke_and_ack+消息，将他的旧承诺撤销。一旦Bob将通道状态向前推进，承诺就会看起来像我们在<<htlc_fulfillment_commitments_bob_commit>>中看到的那样。
 
 [[htlc_fulfillment_commitments_bob_commit]]
 .Alice signs Bob's new commitment and Bob revoked the old one
 image::images/mtln_0913.png[Alice signs Bob's new commitment and Bob revoked the old one]
 
-[role="pagebreak-before"]
-Finally, Bob signs Alice's commitment by sending Alice a +commitment_signed+ message. Then Alice acknowledges and revokes her old commitment by sending +revoke_and_ack+ to Bob. The end result is that both Alice and Bob have moved their channel state to Commitment #4, have removed the HTLC, and have updated their balances. Their current channel state is represented by the commitment transactions that are shown in <<alice_bob_htlc_fulfilled>>(((range="endofrange", startref="ix_09_channel_operation-asciidoc12")))(((range="endofrange", startref="ix_09_channel_operation-asciidoc11"))). (((range="endofrange", startref="ix_09_channel_operation-asciidoc10")))(((range="endofrange", startref="ix_09_channel_operation-asciidoc9")))
+
+最后，Bob通过向Alice发送 +commitment_signed+ 消息来签署Alice的承诺。然后，Alice会通过发送 +revoke_and_ack+ 消息来确认旧承诺的撤销，然后撤销自己的旧承诺。最终结果是Alice和Bob都将通道状态推进到Commitment#4，移除了该HTLC，并更新了他们的余额。他们当前的通道状态由<<alice_bob_htlc_fulfilled>>中所示的承诺交易表示。(((range="endofrange", startref="ix_09_channel_operation-asciidoc12")))(((range="endofrange", startref="ix_09_channel_operation-asciidoc11"))). (((range="endofrange", startref="ix_09_channel_operation-asciidoc10")))(((range="endofrange", startref="ix_09_channel_operation-asciidoc9")))
 
 [[alice_bob_htlc_fulfilled]]
 .Alice and Bob settle the HTLC and update balances
 image::images/mtln_0914.png[Alice and Bob settle the HTLC and update balances]
 
 [role="pagebreak-before less_space"]
-=== Removing an HTLC Due to Error or Expiry
+=== 错误或过期状态下，移除HTLC
 
-((("hash time-locked contracts (HTLCs)","removing due to error/expiry")))((("payment forwarding","removing an HTLC due to error/expiry")))If an HTLC cannot be fulfilled, it can be removed from the channel commitment using the same process of commitment and revocation.
 
-Instead of +update_fulfill_htlc+, Bob would send an +update_fail_htlc+ or +update_fail_malformed_htlc+. These two messages are defined in https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md#removing-an-htlc-update_fulfill_htlc-update_fail_htlc-and-update_fail_malformed_htlc[BOLT #2: Peer Protocol, Removing an HTLC].
+((("hash time-locked contracts (HTLCs)","removing due to error/expiry")))((("payment forwarding","removing an HTLC due to error/expiry")))如果一个HTLC不能被满足，那么可以使用相同的承诺和撤销流程从通道承诺中移除它。
 
-The +update_fail_htlc+ message is shown in the following:
+
+相较于之前发送的+update_fulfill_htlc+，Bob会发送+update_fail_htlc+或+ update_fail_malformed_htlc+。这两个消息在 https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md#removing-an-htlc-update_fulfill_htlc-update_fail_htlc-and-update_fail_malformed_htlc[BOLT #2: Peer Protocol, Removing an HTLC] 中被定义.
+
++update_fail_htlc+ 消息格式如下：
 
 [[update_fail_htlc_message]]
 .The +update_fail_htlc+ message
@@ -331,28 +394,31 @@ The +update_fail_htlc+ message is shown in the following:
 [len*byte:reason]
 ----
 
-It's pretty self-explanatory. The multibyte +reason+ field is defined in https://github.com/lightningnetwork/lightning-rfc/blob/master/04-onion-routing.md#failure-messages[BOLT #4: Onion Routing], which we will describe in <<onion_routing>>.
+上述消息体很好理解，多字节的 +reason+ 字段在 https://github.com/lightningnetwork/lightning-rfc/blob/master/04-onion-routing.md#failure-messages[BOLT#4:OnionRouting] 中被定义，我们将在<<onion_routing>>中更详细地描述。
 
-If Alice received an +update_fail_htlc+ from Bob, the process would unfold in much the same way: the two channel partners would remove the HTLC, create updated commitment transactions, and go through two rounds of commitment/revocation to move the channel state forward to the next commitment. The only difference: the end balances would revert back to what they were without the HTLC, essentially refunding Alice for the HTLC value.
+如果Alice从Bob收到了 +update_fail_htlc+ 消息，整个过程会按照类似的方式展开：两个通道伙伴会移除HTLC，创建更新的承诺交易，并经过两轮承诺/撤销流程来将通道状态向前移动到下一个承诺。唯一的区别在于，最终的余额将恢复到没有HTLC的状态，从本质上讲为Alice的HTLC价值提供了退款。
 
-=== Making a Local Payment
+=== 创建本地支付
 
-((("hash time-locked contracts (HTLCs)","local payment with")))((("local payments")))((("payment forwarding","local payments")))At this point, you will easily understand why HTLCs are used for both remote and local payments. When Alice pays Bob for a coffee, she doesn't just update the channel balance and commit to a new state. Instead, the payment is made with an HTLC, in the same way Alice paid Dina. The fact that there's only one channel hop makes no difference. It would work like this:
+((("hash time-locked contracts (HTLCs)","local payment with")))((("local payments")))((("payment forwarding","local payments")))至此，你很容易理解为什么HTLC被用于远程和本地支付。当Alice为Bob买咖啡时，她不仅仅更新通道余额并且还提交了一个新的状态。相反，支付是通过HTLC进行的，就如同Alice支付Dina一样。事实上，只有一个通道的支付与此并没有任何区别。它将像这样工作：
+
+
 [start=1]
-. Alice orders a coffee from Bob's shop page.
-. Bob's shop sends an invoice with a payment hash.
-. Alice constructs an HTLC from that payment hash.
-. Alice offers the HTLC to Bob with +update_add_htlc+.
-. Alice and Bob exchange commitments and revocations adding the HTLC to their commitment transactions.
-. Bob sends +update_fulfill_htlc+ to Alice with the payment preimage.
-. Alice and Bob exchange commitments and revocations removing the HTLC and updating the channel balances.
+. Alice从Bob的商店页面上订购一杯咖啡。
+. Bob的商店发送一个带有一个支付哈希的发票。
+. Alice使用该支付哈希构建 HTLC。
+. Alice通过 +update_add_htlc+ 将 HTLC 发送给 Bob。
+. Alice 和 Bob 交换承诺交易和撤销交易以将 HTLC 添加到他们的承诺交易中。
+. Bob 将支付原像通过 +update_fulfill_htlc+ 消息发送给 Alice。
+. Alice 和 Bob 交换承诺和撤销以移除 HTLC 并更新通道余额。
 
-Whether an HTLC is forwarded across many channels or just fulfilled in a single channel "hop," the process is exactly the same
 
-=== Conclusion
+无论HTLC是跨越多个通道转发还是在单个通道中完成，其处理过程都是完全相同的。
 
-In this chapter we saw how commitment transactions (from <<payment_channels>>) and HTLCs (from <<routing>>) work together. We saw how an HTLC is added to a commitment transaction, and how it is fulfilled. We saw how the asymmetric, delayed, revocable system for enforcing channel state is extended to HTLCs.
 
-We also saw how a local payment and a multihop routed payment are handled identically: using HTLCs.(((range="endofrange", startref="ix_09_channel_operation-asciidoc0")))
+=== 总结
+在这一章中，我们看到了承诺交易（来自<<payment_channels>>）和HTLC（来自<<routing>>）是如何协同工作的。 我们看到了HTLC如何添加到承诺交易中，以及如何完成HTLC。 我们看到了如何将撤销通道状态的非对称、延迟、可撤销的结构扩展到HTLC。
 
-In the next chapter we will look at the encrypted message routing system called _onion routing_.
+我们还可以看到本地支付和多跳路由支付是如何相同地处理的：使用HTLC。
+
+在下一章中，我们将看看称为Onion Routing的加密消息路由系统。
